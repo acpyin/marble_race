@@ -1,0 +1,64 @@
+import assert from 'node:assert/strict';
+import {AudienceReactions,DanmakuOverlay} from '../src/race-danmaku.js';
+import {danmakuCorpus} from '../src/danmaku-corpus.js';
+const order=Array.from({length:8},(_,id)=>({id,name:`选手${id}`,progress:100-id*10,speed:5,finished:false}));
+const c=new AudienceReactions(()=>0);
+assert.ok(c.update(order,0,'ready','起跑'));
+assert.equal(c.update(order,2000,'ready','起跑'),null);
+assert.match(c.update(order,2100,'racing','起跑'),/开跑/);
+assert.equal(c.update(order,10000,'paused','起跑'),null);
+const changed=[order[0],order[4],order[1],order[2],order[3],...order.slice(5)];
+assert.match(c.update(changed,7000,'racing','木槽'),/选手4.*3/);
+assert.match(c.update(changed,12000,'racing','漏斗'),/漏斗/);
+const finished=changed.map((m,i)=>({...m,finished:i===0}));
+assert.match(c.update(finished,12001,'finished','终点'),/选手0/);
+assert.equal(c.update(finished,20000,'finished','终点'),null);
+const phrases=Object.values(danmakuCorpus).flat();
+assert.ok(phrases.length>=250,`弹幕语料至少 250 条，当前 ${phrases.length}`);
+for(const [kind,pool] of Object.entries(danmakuCorpus))assert.equal(new Set(pool).size,pool.length,`${kind} 语料不应重复`);
+for(const kind of Object.keys(danmakuCorpus)){
+  const text=c.phrase(kind,{name:'青岚',rival:'星渊',gain:3,speed:'5.0',stage:'蛇形木槽'});
+  assert.ok(!text.includes('{'));assert.ok(text.length<60);
+}
+// Small DOM harness: lane reuse past the limit, hover/resume, panel masking, layout relayout and global pause.
+const classes=()=>({add(){},remove(){}});
+const box=(left,right,top,bottom)=>({left,right,top,bottom});
+let lbBox=box(300,500,0,380);
+const leaderboard={hidden:false,getBoundingClientRect:()=>lbBox};
+const focusCard={hidden:false,getBoundingClientRect:()=>box(0,240,700,780)};
+const betSummary={hidden:true,getBoundingClientRect:()=>box(0,180,0,800)};
+globalThis.document={hidden:false,querySelector:s=>s==='.leaderboard'?leaderboard:s==='#betSummary'?betSummary:s==='.focus-card'?focusCard:null,createElement:()=>({style:{},classList:classes(),offsetWidth:220,events:{},addEventListener(k,f){this.events[k]=f;},getBoundingClientRect(){const x=Number(this.style.transform?.match(/-?[\d.]+/)?.[0]??0),y=parseFloat(this.style.top||0);return {left:x,right:x+220,top:y,bottom:y+34};},remove(){this.removed=true;}})};
+globalThis.localStorage={getItem(){return null;},setItem(){}};
+globalThis.ResizeObserver=class{observe(){}};
+const root={clientWidth:600,clientHeight:800,append(){},getBoundingClientRect:()=>box(0,600,0,800)};
+const button={setAttribute(){},addEventListener(k,f){this.click=f;}};
+const overlay=new DanmakuOverlay(root,button);
+for(let i=0;i<3;i++)assert.equal(overlay.spawn('看球！'),true);
+assert.deepEqual([...overlay.items.map(i=>i.lane)].sort(),[0,1,2],'默认三车道各占一条');
+assert.ok(overlay.items.every(item=>item.speed>=87&&item.speed<=108));
+// 车道占满后新的赛况仍然要上屏，且不能顶掉已经在飞的那几条。
+const flying=overlay.items.map(item=>item.node);
+assert.equal(overlay.spawn('第四条'),true,'车道占满时仍可继续上屏');
+assert.equal(overlay.items.length,4);
+assert.ok(flying.every(node=>!node.removed),'已有弹幕不应被挤掉');
+assert.ok(overlay.items[3].lane>=0&&overlay.items[3].lane<3&&flying.includes(overlay.items[0].node));
+const sharedLane=overlay.items[3].lane,ahead=overlay.items.slice(0,3).find(item=>item.lane===sharedLane);
+assert.ok(ahead&&overlay.items[3].speed<=ahead.speed,'同车道叠加时新弹幕不能追上前面那条');
+// 布局变化（排名面板改高矮）只重排位置，不清空。
+lbBox=box(300,500,0,300);overlay.relayout();
+assert.equal(overlay.items.length,4,'面板尺寸变化时不应清空弹幕');
+const first=overlay.items[0];first.node.events.pointerenter();
+overlay.update(order,1,'racing','起跑');assert.equal(first.x,600);assert.ok(overlay.items[1].x<600);
+first.node.events.pointerleave();overlay.update(order,2,'racing','起跑');assert.ok(first.x<600);
+first.x=350;first.node.style.transform='translateX(350px)';lbBox=box(300,500,0,800);overlay.maskPanels(first);
+assert.equal(first.node.style.visibility,'hidden','弹幕经过实时排名时隐藏');
+leaderboard.hidden=true;overlay.maskPanels(first);assert.equal(first.node.style.visibility,'visible');
+leaderboard.hidden=false;lbBox=box(300,500,0,300);
+betSummary.hidden=false;first.x=50;first.node.style.transform='translateX(50px)';overlay.maskPanels(first);assert.equal(first.node.style.visibility,'hidden','弹幕经过押注摘要时隐藏');
+betSummary.hidden=true;overlay.maskPanels(first);assert.equal(first.node.style.visibility,'visible');
+const x=first.x;overlay.update(order,1,'paused','起跑');assert.equal(first.x,x);
+document.hidden=true;overlay.update(order,1,'racing','起跑');assert.equal(first.x,x);document.hidden=false;
+button.click();assert.equal(overlay.items.length,0);assert.equal(overlay.enabled,false);
+overlay.update(order,10,'racing','起跑');assert.equal(overlay.items.length,0);
+button.click();assert.equal(overlay.enabled,true);
+console.log(`Danmaku checks passed: ${phrases.length} phrases, lanes overflow, panel masking, hover, relayout, pause and toggle.`);

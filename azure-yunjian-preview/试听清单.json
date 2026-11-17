@@ -1,0 +1,51 @@
+{
+  "voice": "zh-CN-YunjianNeural",
+  "status": "awaiting-credentials",
+  "samples": [
+    {
+      "id": "01-平述",
+      "title": "平述",
+      "text": "好，八颗弹珠已经出发。青岚和紫罗并肩进入木质长坡，后面的选手还挤在一起，第一轮争位就要开始了。",
+      "style": "sports_commentary",
+      "degree": 1,
+      "rate": "+0%",
+      "mp3": null
+    },
+    {
+      "id": "02-追赶",
+      "title": "追赶",
+      "text": "我们看到银河正在追！刚才还落后两个球身，现在已经贴到青岚身边了。前面就是三角导流块，这一段很可能改变顺序。",
+      "style": "sports_commentary",
+      "degree": 1.15,
+      "rate": "+5%",
+      "mp3": null
+    },
+    {
+      "id": "03-反超",
+      "title": "反超",
+      "text": "漂亮！银河从外侧杀出来，超过青岚，来到第一！两颗球几乎擦着拨杆过去，这一下反超真是干净利落！",
+      "style": "sports_commentary_excited",
+      "degree": 1.22,
+      "rate": "+8%",
+      "mp3": null
+    },
+    {
+      "id": "04-漏斗",
+      "title": "漏斗",
+      "text": "进圆形漏斗了，先看谁更靠近中心落孔。青岚还在外圈打转，翠羽已经贴近出口；别看入碗时差了半圈，现在反而是翠羽占先。",
+      "style": "sports_commentary",
+      "degree": 1.08,
+      "rate": "-2%",
+      "mp3": null
+    },
+    {
+      "id": "05-夺冠",
+      "title": "夺冠",
+      "text": "来了，最后的收口！银河顶住追击，率先钻进排次槽！冠军确定了，是银河！后面的球还在争第二，我们继续看！",
+      "style": "sports_commentary_excited",
+      "degree": 1.28,
+      "rate": "+10%",
+      "mp3": null
+    }
+  ]
+}

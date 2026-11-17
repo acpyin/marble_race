@@ -1,0 +1,20 @@
+{
+  "name": "marble-race-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --configLoader native --host 127.0.0.1 --port 4180 --strictPort",
+    "build": "vite build --configLoader native",
+    "preview": "vite preview --configLoader native --host 127.0.0.1 --port 4180 --strictPort",
+    "test:physics": "node tools/check-physics.mjs"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.20.0",
+    "cannon-es": "^0.20.0",
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "vite": "^7.1.5"
+  }
+}

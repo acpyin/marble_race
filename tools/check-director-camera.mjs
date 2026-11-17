@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict';
+import {directorCue,stageRacer} from '../src/director-camera.js';
+import {stageDetail} from '../src/live-commentary-corpus.js';
+
+const sections=[{end:32,name:'01 · 起跑'},{end:17,name:'02 · 双球漏斗'},{end:-12,name:'03 · 木质分流岛'},{end:-48,name:'04 · 回转'}];
+const racers=[{name:'青岚'},{name:'紫罗'}];
+const now=1000;
+let cue=directorCue('leadChange',{name:'紫罗',rival:'青岚'},'紫罗反超青岚，第一的位置换了！',sections,racers,now);
+assert.equal(cue.type,'marble');assert.equal(cue.marbleIndex,1);assert.equal(cue.rivalIndex,0);assert.ok(cue.until>=now+5500);
+cue=directorCue('stage',{name:'青岚',stage:'木质分流岛'},'青岚进入木质分流岛。',sections,racers,now);
+assert.equal(cue.type,'stage');assert.equal(cue.sectionIndex,2);assert.equal(cue.z,2.5);
+const live=[{name:'青岚',finished:false,body:{position:{z:4}}},{name:'紫罗',finished:false,body:{position:{z:-30}}}];
+assert.equal(stageRacer(cue,sections,live,p=>p.z),live[0]);
+assert.equal(stageRacer(cue,sections,[live[1]],p=>p.z),null,'empty stage cannot trigger a cutaway');
+cue=directorCue('bowlDrop',{name:'紫罗',stage:'双球漏斗'},'紫罗找到出口！',sections,racers,now);
+assert.equal(cue.type,'stage');assert.equal(cue.z,24.5);
+cue=directorCue('finish',{name:'青岚'},'青岚入槽。',sections,racers,now);
+assert.equal(cue.type,'marble');assert.equal(cue.marbleIndex,0);
+assert.equal(directorCue('start',{},'开跑！',sections,racers,now).type,'field');
+assert.match(stageDetail('03 · 木质分流岛'),/中央木岛/);
+assert.match(stageDetail('03 · 错位导流门'),/斜门/);
+assert.match(stageDetail('36 · 分流波浪与交错挡板'),/汇流|双道/);
+assert.match(stageDetail('39 · 终点排次槽'),/最后一颗/);
+console.log('导播事件选手、赛段和动态开场语料检查通过');
