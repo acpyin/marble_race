@@ -48,6 +48,8 @@ npm run build     # 产物写入 dist/
 npm run preview   # 预览 dist/，同样占用 4180
 ```
 
+背景音乐不入库：把 `.ogg` 放进 `src/static/music/` 就会被自动收录（无需改代码），目录为空时只是没有背景音乐。
+
 ---
 
 ## 玩法与操作
@@ -75,73 +77,6 @@ npm run preview   # 预览 dist/，同样占用 4180
 
 ---
 
-## 目录结构
-
-```
-marble_race/
-├─ index.html                 页面骨架：顶栏、押注面板、排名、解说、设置弹窗
-├─ src/
-│  ├─ main.js                 主程序：赛道生成、物理循环、镜头、UI 与各模块装配
-│  ├─ rapier-adapter.js       Rapier 物理引擎适配层（含 cannon-es 风格 API）
-│  ├─ race-position.js        沿赛道中心线的弧长进度，用于排名与间距
-│  ├─ race-variation.js       按种子生成每场随机变化
-│  ├─ betting.js              账户、押注、结算、每日奖励
-│  ├─ race-commentary.js      事件驱动的实时解说引擎
-│  ├─ live-commentary-corpus.js  现用解说语料（16 类 × 4 条 + 30 段赛段描写）
-│  ├─ commentary-corpus*.js   旧版解说语料（100 + 200 条，已归档不再用于实时解说）
-│  ├─ voice-commentary.js     SpeechSynthesis 语音播报
-│  ├─ voice-settings.js       设置弹窗的音色、语速与开关绑定
-│  ├─ race-danmaku.js         模拟观众弹幕：事件判定 + 车道排版
-│  ├─ danmaku-corpus.js       弹幕语料（10 类，约 800 条）
-│  ├─ director-camera.js      导播镜头选点
-│  ├─ impact-audio.js         材质撞击音实时合成
-│  ├─ style.css
-│  └─ static/music/           背景音乐（ogg，自动收录；文件不入库）
-├─ tools/                     一键启动脚本与各类检查脚本
-├─ docs/                      语料可读版、弹幕说明、历史变更日志、初代原型源码快照
-├─ Unreal/MarbleRace/         UE5 工程骨架（C++ 源码与场景生成脚本，尚未编译验证）
-├─ azure-yunjian-preview/     语音试听素材（SSML 文案 + 试听页）
-├─ 弹珠竞速_产品游戏设计文档.md
-├─ 弹珠竞速_技术方案文档.md
-├─ 网页版技术方案与写实优化建议.md
-├─ 弹珠竞速_Demo演示图_v1.png  演示图（见文首）
-├─ dist/                      生产构建产物（不入库）
-├─ work/                      物理与赛道测试报告、本地 npm 缓存（不入库）
-└─ .run/                      预览进程信息与日志（不入库）
-```
-
-版本管理：`node_modules/`、`dist/`、`work/`、`.run/`、`.workbuddy/`、`.deploy/`（含部署私钥）与 `src/static/music/*.ogg` 均已在 `.gitignore` 中排除，仓库只保留源码、文档与工程配置。克隆后执行 `npm install` 并把音乐放回 `src/static/music/` 即可运行。
-
----
-
-## 背景音乐
-
-把 `.ogg` 文件放进 `src/static/music/` 即可，**不需要改代码**：`src/main.js` 用 `import.meta.glob` 自动收集目录内的全部曲目，构建时也只打包实际存在的文件。
-
-- 每场比赛随机抽一首，尽量避免与上一场重复
-- 播放状态显示在设置弹窗里；音量与开关保存在本机
-- 文件缺失或无法解码时，状态栏会提示「音乐文件不可用，请检查 static/music」
-- 目前收录 13 首；想精简直接删文件，重新构建即可
-- **ogg 文件不入库**（`.gitignore` 已排除 `src/static/music/*`，仅保留 `.gitkeep` 占位）：克隆仓库后需自行把音乐放回该目录，否则曲库为空、比赛静音但不影响其他功能
-
----
-
-## 解说与弹幕
-
-**实时解说**：0.5 秒取一次全部弹珠的位置快照，比较最近约 5 秒的名次与间距变化，事件确认后才播报（前四换位、相邻选手距离增减、末两名争位、三名以上升降、冠军冲线等）。所有数字来自真实比赛数据，解说使用独立随机源，不影响物理结果。文字播报显示最近三行并向上滚动。
-
-**语音**：用浏览器自带的 SpeechSynthesis，从系统中文音色里挑，可设语速 0.70–1.50 与音色偏好。默认关闭，首次开启需要浏览器允许发声。实际效果取决于系统语音引擎。
-
-**弹幕**：默认开启，三条基础轨道（可在 1–6 之间调），默认速度 1.5 倍，相邻两条至少间隔 4.5 秒。
-
-- 每条弹幕从右侧进入、完整滑出左边界才移除；出现新赛况**不会**顶掉正在飞的弹幕
-- 轨道数只是排版基准，三条满员时新消息照样上屏，叠加到余量最大的那条轨道，并把速度压到前一条之下，避免追尾成叠字
-- 经过「实时排名」与「我的押注」面板时自动隐藏，避免压住读数
-- 调整窗口大小只重排弹幕高度，不清空
-- 比赛暂停或页面隐藏时停止移动与生成，不补发积压消息
-
----
-
 ## 本地存储
 
 全部设置只存在当前浏览器，清站点数据即恢复默认。
@@ -153,44 +88,3 @@ marble_race/
 | `marble-race-voice-settings-v1` | 解说音色与语速 |
 | `marble-race-danmaku-v1` | 弹幕总开关 |
 | `marble-race-danmaku-settings-v1` | 弹幕基础条数与速度倍率 |
-
----
-
-## 检查脚本
-
-无画面仿真与断言检查，均在项目根目录用 `node` 直接运行。
-
-| 命令 | 覆盖范围 | 当前状态 |
-| --- | --- | --- |
-| `node tools/check-physics.mjs [比赛种子] [赛道种子]` | 从起跑线跑到终点排次槽，检测掉出赛道、绕过落孔等 | 通过 |
-| `node tools/check-danmaku.mjs` | 语料数量与去重、赛况触发、轨道超限叠加、面板遮挡、悬停、布局变更、暂停与开关 | 通过 |
-| `node tools/check-corpus.mjs` | 解说语料数量、重复、占位符 | 通过 |
-| `node tools/check-voice.mjs` | 中文音色选择、降级、情绪参数、积压控制、冠军优先 | 通过 |
-| `node tools/check-director-camera.mjs` | 导播镜头选点 | 通过 |
-| `node tools/check-betting.mjs` | 押注扣费、结算、每日奖励 | 过期（断言里的奖励仍按旧值 40 珠） |
-| `node tools/check-commentary.mjs`、`check-race-position.mjs` | 解说句式、间距用词 | 过期（语料迭代后未同步） |
-| `node tools/check-extended-layout.mjs`、`check-finish-receiver.mjs`、`check-new-sections.mjs` | 赛道结构抽查 | 过期（提取代码时缺 `bowlWoodMap`，需同步） |
-
-`npm run test:physics` 等价于 `check-physics.mjs`。
-
----
-
-## 已知限制
-
-- `dist/` 是构建产物，已按当前源码重建；`dist-nosound/` 的无音乐版本已随目录整理移除，需要时可用同一份源码另行构建。
-- 在线演示 <http://8.130.45.145:4180/> 是部署端的一份静态构建，改了源码不会自动生效，需要在服务器上重新拉取并构建才会更新。
-- 预览模式不热更新，改完源码要重新构建；日常开发建议用 `npm run dev`。
-- 画质与启动速度有取舍：为保证约 1.4 秒进入可操作，木纹使用简化纹理，护栏碰撞合并为静态网格。
-- 语音效果、极端碰撞（超高速度、连续跳槽）尚未做逐项人工验证。
-- 弹幕、解说、语音都是本地程序模拟，未连接真实观众或在线服务。
-
----
-
-## 更多文档
-
-- `docs/simulated-danmaku.md`：弹幕生成规则与语料分类
-- `docs/live-race-commentary.md`：实时解说的判定逻辑
-- `docs/commentary-corpus-*.md`：历史解说语料的完整可读版
-- `docs/CHANGELOG.md`：从最初原型到现在的完整开发记录（数值可能已过期）
-- `docs/legacy-prototype-v1/`：初代单文件原型的源码快照，仅作对照
-- `work/*-report.json`：物理与赛道仿真测试报告（本地生成，不入库）
