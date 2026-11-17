@@ -4,6 +4,12 @@
 
 技术栈：Vite 7 + three.js（渲染）+ Rapier（物理，1/360 秒步长）。
 
+**在线演示**：<http://8.130.45.145:4180/>
+
+> 该地址服务的是已部署的 `dist/` 静态构建，未必包含最新源码改动；要看当前代码效果请按下方「快速开始」在本地运行。
+
+![弹珠竞速演示图](./弹珠竞速_Demo演示图_v1.png)
+
 ---
 
 ## 快速开始
@@ -72,7 +78,7 @@ npm run preview   # 预览 dist/，同样占用 4180
 ## 目录结构
 
 ```
-outputs/web-game/
+marble_race/
 ├─ index.html                 页面骨架：顶栏、押注面板、排名、解说、设置弹窗
 ├─ src/
 │  ├─ main.js                 主程序：赛道生成、物理循环、镜头、UI 与各模块装配
@@ -90,13 +96,21 @@ outputs/web-game/
 │  ├─ director-camera.js      导播镜头选点
 │  ├─ impact-audio.js         材质撞击音实时合成
 │  ├─ style.css
-│  └─ static/music/           背景音乐（ogg，自动收录）
-├─ tools/                     启动脚本与各类检查脚本
-├─ docs/                      语料可读版、弹幕说明、历史变更日志
-├─ work/                      物理与赛道测试报告 JSON
-├─ dist/                      生产构建产物（start-or-restart.cmd 与 preview 使用）
-└─ .run/                      预览进程信息与日志
+│  └─ static/music/           背景音乐（ogg，自动收录；文件不入库）
+├─ tools/                     一键启动脚本与各类检查脚本
+├─ docs/                      语料可读版、弹幕说明、历史变更日志、初代原型源码快照
+├─ Unreal/MarbleRace/         UE5 工程骨架（C++ 源码与场景生成脚本，尚未编译验证）
+├─ azure-yunjian-preview/     语音试听素材（SSML 文案 + 试听页）
+├─ 弹珠竞速_产品游戏设计文档.md
+├─ 弹珠竞速_技术方案文档.md
+├─ 网页版技术方案与写实优化建议.md
+├─ 弹珠竞速_Demo演示图_v1.png  演示图（见文首）
+├─ dist/                      生产构建产物（不入库）
+├─ work/                      物理与赛道测试报告、本地 npm 缓存（不入库）
+└─ .run/                      预览进程信息与日志（不入库）
 ```
+
+版本管理：`node_modules/`、`dist/`、`work/`、`.run/`、`.workbuddy/`、`.deploy/`（含部署私钥）与 `src/static/music/*.ogg` 均已在 `.gitignore` 中排除，仓库只保留源码、文档与工程配置。克隆后执行 `npm install` 并把音乐放回 `src/static/music/` 即可运行。
 
 ---
 
@@ -163,7 +177,8 @@ outputs/web-game/
 
 ## 已知限制
 
-- `dist/` 与 `dist-nosound/` 是构建产物：`dist/` 已按当前源码重建，`dist-nosound/` 仍是旧构建，需要时重新生成。
+- `dist/` 是构建产物，已按当前源码重建；`dist-nosound/` 的无音乐版本已随目录整理移除，需要时可用同一份源码另行构建。
+- 在线演示 <http://8.130.45.145:4180/> 是部署端的一份静态构建，改了源码不会自动生效，需要在服务器上重新拉取并构建才会更新。
 - 预览模式不热更新，改完源码要重新构建；日常开发建议用 `npm run dev`。
 - 画质与启动速度有取舍：为保证约 1.4 秒进入可操作，木纹使用简化纹理，护栏碰撞合并为静态网格。
 - 语音效果、极端碰撞（超高速度、连续跳槽）尚未做逐项人工验证。
@@ -177,4 +192,5 @@ outputs/web-game/
 - `docs/live-race-commentary.md`：实时解说的判定逻辑
 - `docs/commentary-corpus-*.md`：历史解说语料的完整可读版
 - `docs/CHANGELOG.md`：从最初原型到现在的完整开发记录（数值可能已过期）
-- `work/*-report.json`：物理与赛道的仿真测试报告
+- `docs/legacy-prototype-v1/`：初代单文件原型的源码快照，仅作对照
+- `work/*-report.json`：物理与赛道仿真测试报告（本地生成，不入库）
