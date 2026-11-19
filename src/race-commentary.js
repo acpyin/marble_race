@@ -1,15 +1,10 @@
-import {liveCorpus,stageDetail,keyStageFocus} from './live-commentary-corpus.js';
-import {racerDistance} from './race-position.js';
-const cleanStageName=value=>String(value??'').replace(/^\s*\d+\s*[.．、·:：—-]?\s*/,'').trim();
+import { liveLines, keyStageFocusMap, stageDetail, describeGap } from './i18n/commentary.js';
+import { format, lengthScale, listSeparator, stageLabel } from './i18n/index.js';
+import { racerDistance } from './race-position.js';
+const cleanStageName = value => String(value ?? '').replace(/^\s*\d+\s*[.．、·:：—-]?\s*/, '').trim();
 
-export function describeDistance(distance){
-  if(distance<1.2)return '不到一个身位';
-  if(distance<3)return '一两个身位';
-  if(distance<8)return '几个身位';
-  if(distance<20)return '一小段';
-  if(distance<45)return '一段距离';
-  if(distance<100)return '好一段距离';
-  return '很长一段';
+export function describeDistance(distance) {
+  return describeGap(distance);
 }
 
 // Read-only observer: snapshots, sustained rank changes and along-track distance trends.
@@ -26,16 +21,22 @@ export class RaceCommentary {
     this.confirmedLeader=null;this.leaderCandidate=null;this.leadSequence=0;
   }
   line(kind,values){
-    const choices=liveCorpus[kind];
-    const render=text=>text.replace(/\{(\w+)\}/g,(_,key)=>String(values[key]??''));
+    const choices=liveLines(kind);
+    if(!choices.length)return null;
+    // Stage labels travel as internal Chinese keys so the director camera can still match
+    // sections; only the sentence itself shows the translated name.
+    const display={...values};
+    if(typeof display.stage==='string')display.stage=stageLabel(display.stage);
+    const render=text=>format(text,display);
+    const scale=lengthScale();
     const urgent=['openingLead','leadChange','jumpUp','frontPass','remainingPass','bowlDrop','winner','flyAway'].includes(kind);
     const tense=['gapClosing','tailClosing','bowlContest','remainingContest'].includes(kind);
     this.lastMood=urgent?'excited':tense?'tense':['slowdown','jumpDown','tailStall','bowlOutward','stuck','failure','lastFailure','lastPlaceWatch'].includes(kind)?'concerned':['finish','lastPlace'].includes(kind)?'celebrate':'analysis';
     let entries=choices.map((text,index)=>({text,key:`${kind}:${index}`})).filter(x=>!x.text.includes('{time}')||values.time);
-    const bounded=entries.filter(x=>render(x.text).length<=70);if(bounded.length)entries=bounded;
+    const bounded=entries.filter(x=>render(x.text).length<=70*scale);if(bounded.length)entries=bounded;
     if(this.adaptive&&kind!=='start'&&kind!=='openingLead'){
       const compact=values.compact||(urgent&&this.random()<.7)||(tense&&Number(values.gap??values.margin)<1);
-      const preferred=entries.filter(x=>compact?render(x.text).length<=30:render(x.text).length>=26&&render(x.text).length<=55);
+      const preferred=entries.filter(x=>compact?render(x.text).length<=30*scale:render(x.text).length>=26*scale&&render(x.text).length<=55*scale);
       if(preferred.length)entries=preferred;
     }
     const recentThree=new Set(this.recent.slice(-3));
@@ -45,7 +46,7 @@ export class RaceCommentary {
     const pool=fresh.length?fresh:allowed;
     const choice=pool[Math.floor(this.random()*pool.length)];
     this.recent.push(choice.text);if(this.recent.length>12)this.recent.shift();
-    const text=render(choice.text);this.lastLength=text.length<=35?'short':text.length<=65?'medium':'long';return text;
+    const text=render(choice.text);this.lastLength=text.length<=35*scale?'short':text.length<=65*scale?'medium':'long';return text;
   }
   update(order,time,state,stage=''){
     if(!['racing','finished'].includes(state)||!order.length)return null;
@@ -57,7 +58,7 @@ export class RaceCommentary {
     // Each racer supplies its own actual module; a leader swap is not a module exit.
     current.forEach((m,rank)=>{
       const number=parseInt(m.stage,10);
-      if(!keyStageFocus[number]||m.finished)return;
+      if(!keyStageFocusMap()[number]||m.finished)return;
       if(!this.keySegments.has(number))this.keySegments.set(number,{since:time,entries:new Map(),departures:new Map(),reported:new Set(),exitCount:0});
       const segment=this.keySegments.get(number);
       segment.label=cleanStageName(m.stage);
@@ -199,7 +200,7 @@ export class RaceCommentary {
     const runningLeader=current.find(m=>!m.finished)||leader;
     if(stage&&stage!==this.stage&&!runningLeader.finished){
       const number=parseInt(stage,10),detail=stageDetail(stage);
-      if(detail)add('stage',{name:runningLeader.name,stage:cleanStageName(stage),detail},`stage:${number}`,time-this.stageSince>=(keyStageFocus[number]?6000:12000)?116:keyStageFocus[number]?96:70);
+      if(detail)add('stage',{name:runningLeader.name,stage:cleanStageName(stage),detail},`stage:${number}`,time-this.stageSince>=(keyStageFocusMap()[number]?6000:12000)?116:keyStageFocusMap()[number]?96:70);
     }
     for(const [number,segment] of this.keySegments){
       const active=current.filter(m=>parseInt(m.stage,10)===number&&!m.finished);
@@ -218,7 +219,7 @@ export class RaceCommentary {
         const unchanged=['bowlContest','bowlSolo'].includes(kind)&&last?.kind===kind&&last.name===values.name&&last.rival===values.rival&&Math.abs(Number(last.distance)-info.exitDistance)<.6;
         if(!unchanged)add(kind,values,key,103,false,6000);
       }else if(active.length>=2&&time-segment.since>=6000&&label){
-        add('keyStageBattle',{stage:label,names:active.slice(0,4).map(m=>m.name).join('、'),name:active[0].name,focus:keyStageFocus[number]},`key-battle:${number}`,time-(this.cooldowns.get(`key-battle:${number}`)??segment.since)>=15000?112:91,false,10000);
+        add('keyStageBattle',{stage:label,names:active.slice(0,4).map(m=>m.name).join(listSeparator()),name:active[0].name,focus:keyStageFocusMap()[number]},`key-battle:${number}`,time-(this.cooldowns.get(`key-battle:${number}`)??segment.since)>=15000?112:91,false,10000);
       }
       if(segment.exitCount>=2||!label)continue;
       const exits=current.map((m,rank)=>({m,rank:rank+1,at:segment.departures.get(m.id),entry:segment.entries.get(m.id)})).filter(x=>x.at!==undefined&&time-x.at<=12000&&!segment.reported.has(x.m.id)&&stable(x.m));
@@ -239,7 +240,7 @@ export class RaceCommentary {
     }
     if(time-this.lastAt>=8500*this.frequencyScale&&current.length>=4&&!leader.finished){
       const gap=racerDistance(leader,current[1]);
-      add('frontSummary',{names:current.slice(0,4).map(m=>m.name).join('、'),gap:fmt(gap),gapText:describeDistance(gap)},'front-summary',40,false,12000);
+      add('frontSummary',{names:current.slice(0,4).map(m=>m.name).join(listSeparator()),gap:fmt(gap),gapText:describeDistance(gap)},'front-summary',40,false,12000);
     }
     const unfinished=current.filter(m=>!m.finished);
     if(leader.finished&&unfinished.length&&time-this.lastAt>=8500*this.frequencyScale){

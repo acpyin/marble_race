@@ -1,12 +1,13 @@
-import {danmakuCorpus} from './danmaku-corpus.js';
+import { danmakuFor, stageLabel, t } from './i18n/index.js';
 const cleanStageName=value=>String(value??'').replace(/^\s*\d+\s*[.．、·:：—-]?\s*/,'').trim();
 
 // Pure race observer; never consumes the physics RNG or writes to race bodies.
 export class AudienceReactions{
   constructor(random=Math.random){this.random=random;this.previous=null;this.lastAt=-Infinity;this.recent=[];this.stage='';this.started=false;this.winner=null;}
   phrase(kind,values={}){
-    const pool=danmakuCorpus[kind].filter(t=>!this.recent.includes(t));
-    const choices=pool.length?pool:danmakuCorpus[kind];
+    const source=danmakuFor(kind);
+    const pool=source.filter(text=>!this.recent.includes(text));
+    const choices=pool.length?pool:source;
     const template=choices[Math.floor(this.random()*choices.length)];
     this.recent.push(template);if(this.recent.length>24)this.recent.shift();
     return template.replace(/\{(\w+)\}/g,(_,key)=>String(values[key]??''));
@@ -27,7 +28,7 @@ export class AudienceReactions{
       if(rank===1)return this.phrase('lead',{name:subject.name});
       if(rank>=order.length-2)return this.phrase('tail',{name:subject.name});
       if(subject.speed>=4)return this.phrase('speed',{name:subject.name});
-      return this.phrase('stage',{stage:section});
+      return this.phrase('stage',{stage:stageLabel(section)});
     }
     if(state==='racing'&&!this.started)this.lastAt=-Infinity;
     const champion=order.find(m=>m.finished);
@@ -50,7 +51,7 @@ export class AudienceReactions{
         }
       }
     }
-    if(!kind&&stage!==this.stage){kind='stage';values={stage:cleanStageName(stage)};}
+    if(!kind&&stage!==this.stage){kind='stage';values={stage:stageLabel(stage)};}
     this.stage=stage;
     if(!kind){
       const roll=this.random(),m=roll<.3?order.at(-1):roll<.6?[...order].sort((a,b)=>b.speed-a.speed)[0]:order[0];
@@ -71,7 +72,7 @@ export class DanmakuOverlay{
     // Panel/layout resizes must never wipe in-flight comments: re-seat them into the new lane area instead.
     this.resizeObserver=new ResizeObserver(()=>this.relayout());this.resizeObserver.observe(root);if(this.rankPanel)this.resizeObserver.observe(this.rankPanel);if(this.focusPanel)this.resizeObserver.observe(this.focusPanel);
   }
-  syncButton(){if(!this.button)return;this.button.textContent=`弹幕：${this.enabled?'开':'关'}`;this.button.setAttribute('aria-pressed',String(this.enabled));}
+  syncButton(){if(!this.button)return;this.button.textContent=t(this.enabled?'danmaku.on':'danmaku.off');this.button.setAttribute('aria-pressed',String(this.enabled));}
   setEnabled(enabled){this.enabled=Boolean(enabled);if(!this.enabled)this.clear();this.observer.lastAt=this.clock;this.syncButton();try{localStorage.setItem('marble-race-danmaku-v1',this.enabled?'on':'off');}catch{}}
   saveSettings(){try{localStorage.setItem('marble-race-danmaku-settings-v1',JSON.stringify({count:this.maxItems,speed:this.speedScale}));}catch{}}
   setMaxItems(value){this.maxItems=Math.round(Math.min(6,Math.max(1,Number(value)||3)));this.saveSettings();}
@@ -126,7 +127,7 @@ export class DanmakuOverlay{
     const slot=this.pickSlot(),lane=slot.lane;
     const node=document.createElement('span');node.className='danmaku-item';node.textContent=text;
     const laneRatio=this.maxItems===1?.5:(lane+.15+Math.random()*.7)/this.maxItems;
-    node.style.top=`${Math.round(bounds.top+(bounds.bottom-bounds.top-26)*laneRatio)}px`;node.title='悬停暂停';this.root.append(node);
+    node.style.top=`${Math.round(bounds.top+(bounds.bottom-bounds.top-26)*laneRatio)}px`;node.title=t('danmaku.hover');this.root.append(node);
     let speed=(58+Math.random()*14)*this.speedScale;
     // Sharing a lane never rear-ends the comment ahead of it.
     if(Number.isFinite(slot.speed))speed=Math.max(20,Math.min(speed,slot.speed*.97));

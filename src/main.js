@@ -11,7 +11,12 @@ import {loadVoiceSettings,setupVoiceSettings} from './voice-settings.js';
 import {directorCue,stageRacer} from './director-camera.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { applyDomI18n, getLocale, initLocale, moduleLabel, onLocaleChange, racerName, resolveAutoLocale, selectLanguage, setLocale, stageLabel, storedPreference, t, woodName } from './i18n/index.js';
 import './style.css';
+
+// Pick a starting language before anything renders, then localize the static markup.
+const localeBoot = initLocale();
+applyDomI18n();
 
 const canvas = document.querySelector('#game');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -946,7 +951,8 @@ function marblePreview(color,style,material){
   return canvas.toDataURL('image/png');
 }
 
-function createMarble([name,color,style],i){
+function createMarble([nameKey,color,style],i){
+  const name=racerName(nameKey);
   const mat=makeMarbleMaterial(color,style);
   const mesh=new THREE.Mesh(new THREE.SphereGeometry(.55,48,32),mat); mesh.castShadow=true; mesh.receiveShadow=true; scene.add(mesh);
   const body=new CANNON.Body({mass:.09,material:marblePhysicsMaterial,shape:new CANNON.Sphere(.55),linearDamping:.006,angularDamping:.012,allowSleep:false});
@@ -956,7 +962,7 @@ function createMarble([name,color,style],i){
     if(material)playImpact(event.contact.getImpactVelocityAlongNormal(),material);
   });
   world.addBody(body);
-  const m={name,color,mesh,body,preview:marblePreview(color,style,mat),index:i,finished:false,failed:false,finishTime:null,failureReason:''}; marbles.push(m); return m;
+  const m={name,nameKey,color,mesh,body,preview:marblePreview(color,style,mat),index:i,finished:false,failed:false,finishTime:null,failureReason:''}; marbles.push(m); return m;
 }
 marbleDefs.forEach(createMarble);
 
@@ -1009,10 +1015,16 @@ const localDateKey=()=>{const d=new Date();return `${d.getFullYear()}-${String(d
 let account=newAccount(),navigating=false;
 try{const saved=JSON.parse(localStorage.getItem(walletKey));if(saved&&Number.isSafeInteger(saved.balance)&&saved.balance>=0)account=saved;}catch{}
 const interrupted=!!account.active;account=abandonBet(account);
-function saveAccount(){try{localStorage.setItem(walletKey,JSON.stringify(account));return true;}catch{betMessage.textContent='浏览器无法保存账户，本次余额仅在当前页面保留';return false;}}
+function saveAccount(){try{localStorage.setItem(walletKey,JSON.stringify(account));return true;}catch{betMessage.textContent=t('bet.saveFailed');return false;}}
 saveAccount();
-document.querySelector('#trackCode').textContent=`${extensionShapeLabel} · ${selectedWood.name} · ${String(layoutSeed).slice(-4)}`;
-document.querySelector('#trackCode').title=`本场木纹：${selectedWood.name}；赛段组合：${extensionModules.map(m=>({trianglePins:'三列高几何障碍',rotorSlalom:'双列旋杆阵列＋玻璃金属交叉漏斗',serpentineGrooves:'抬板连续S形槽',splitterWaves:'分流波浪＋挡板'})[m.id]).join(' → ')}`;
+const moduleComboNames={trianglePins:'三列高几何障碍',rotorSlalom:'双列旋杆阵列＋玻璃金属交叉漏斗',serpentineGrooves:'抬板连续S形槽',splitterWaves:'分流波浪＋挡板'};
+function updateTrackCode(){
+  const node=document.querySelector('#trackCode');
+  const combo=extensionModules.map(m=>moduleLabel(moduleComboNames[m.id])).join(' → ');
+  node.textContent=`${stageLabel(extensionShapeLabel)} · ${woodName(selectedWood.name)} · ${String(layoutSeed).slice(-4)}`;
+  node.title=t('track.title',{wood:woodName(selectedWood.name),combo});
+}
+updateTrackCode();
 marbles.forEach((m,i)=>{
   const button=document.createElement('button');button.type='button';button.dataset.index=String(i);
   button.setAttribute('aria-pressed','false');
@@ -1020,17 +1032,18 @@ marbles.forEach((m,i)=>{
   button.querySelector('.rank-ball').style.backgroundImage=`url("${m.preview}")`;
   button.addEventListener('click',()=>{
     if(raceState!=='ready')return;
-    if(picks.has(i))picks.delete(i);else if(picks.size<4)picks.add(i);else{betMessage.textContent='最多选择 4 颗弹珠';return;}
-    betMessage.textContent=picks.size?'开赛后锁定押注':'请选择你看好的弹珠';updateBetUI();
+    if(picks.has(i))picks.delete(i);else if(picks.size<4)picks.add(i);else{betMessage.textContent=t('bet.maxPicks',{max:4});return;}
+    betMessage.textContent=picks.size?t('bet.locked'):t('bet.placeholder');updateBetUI();
   });
   document.querySelector('#betChoices').append(button);
 });
 function updateBetUI(){
   document.querySelector('#balance').textContent=String(account.balance);
   const cost=picks.size*STAKE_PER_PICK;
-  document.querySelector('#betCost').textContent=picks.size?`已选 ${picks.size} 颗 · 合计 ${cost} 珠`:`每颗 ${STAKE_PER_PICK} 珠，最多选择 4 颗`;
-  document.querySelector('#betReward').textContent=String(championReward(marbles.length));
-  const claimedToday=account.lastDailyClaim===localDateKey();dailyClaimBtn.disabled=claimedToday;dailyClaimBtn.textContent=claimedToday?'今日已领取':`领取 ${DAILY_BONUS} 珠`;
+  document.querySelector('#betCaption').textContent=t('bet.caption',{stake:STAKE_PER_PICK,max:4});
+  document.querySelector('#betCost').textContent=picks.size?t('bet.cost',{count:picks.size,cost}):t('bet.costEmpty',{stake:STAKE_PER_PICK,max:4});
+  document.querySelector('#betRewardHint').innerHTML=t('bet.rewardHint',{reward:`<b id="betReward">${championReward(marbles.length)}</b>`});
+  const claimedToday=account.lastDailyClaim===localDateKey();dailyClaimBtn.disabled=claimedToday;dailyClaimBtn.textContent=claimedToday?t('bet.claimed'):t('bet.claim',{amount:DAILY_BONUS});
   document.querySelector('.bet-panel').hidden=raceState!=='ready';
   const summary=document.querySelector('#betSummary');summary.hidden=raceState==='ready';
   document.querySelector('#myBetBalls').replaceChildren(...[...picks].map(index=>{
@@ -1040,16 +1053,16 @@ function updateBetUI(){
   }));
   document.querySelectorAll('#betChoices button').forEach(button=>{button.disabled=raceState!=='ready';button.setAttribute('aria-pressed',String(picks.has(Number(button.dataset.index))));});
   document.querySelector('#randomTrackBtn').disabled=raceState!=='ready'&&raceState!=='finished';
-  resetBtn.textContent=['countdown','racing','paused'].includes(raceState)?'放弃本场':'新一场';
+  resetBtn.textContent=t(['countdown','racing','paused'].includes(raceState)?'controls.abandon':'controls.reset');
   if(raceState==='ready'){
     startBtn.disabled=picks.size===0||account.balance<cost;
-    startBtn.textContent='押注并开赛';
-    if(picks.size&&account.balance<cost)betMessage.textContent='余额不足，请减少选择';
+    startBtn.textContent=t('bet.start');
+    if(picks.size&&account.balance<cost)betMessage.textContent=t('bet.insufficient');
   }
 }
-if(interrupted)betMessage.textContent='上一场已中断，扣除的押注珠子不退回';
+if(interrupted)betMessage.textContent=t('bet.interrupted');
 updateBetUI();
-dailyClaimBtn.addEventListener('click',()=>{const result=claimDaily(account,localDateKey());account=result.account;if(result.claimed){saveAccount();betMessage.textContent=`每日奖励到账：获得 ${DAILY_BONUS} 珠`;}updateBetUI();});
+dailyClaimBtn.addEventListener('click',()=>{const result=claimDaily(account,localDateKey());account=result.account;if(result.claimed){saveAccount();betMessage.textContent=t('bet.daily',{amount:DAILY_BONUS});}updateBetUI();});
 document.querySelector('#randomTrackBtn').addEventListener('click',resetRace);
 
 function removeGate(){
@@ -1071,10 +1084,10 @@ function beginRace(){
   startRandomMusic();
   voiceCommentator.startRace();
   raceState='countdown'; finishCard.hidden=true; startBtn.disabled=true; pauseBtn.disabled=true;
-  betMessage.textContent='押注已锁定，等待冠军';updateBetUI();
+  betMessage.textContent=t('bet.locked');updateBetUI();
   let n=3; countdown.textContent=n;
   clearInterval(countdownTimer);
-  countdownTimer=setInterval(()=>{ n--; if(n>0){countdown.textContent=n;} else if(n===0){countdown.textContent='出发';} else { clearInterval(countdownTimer); countdown.textContent=''; removeGate(); raceState='racing'; raceStart=performance.now(); pauseBtn.disabled=false; startBtn.textContent='比赛中'; } },700);
+  countdownTimer=setInterval(()=>{ n--; if(n>0){countdown.textContent=n;} else if(n===0){countdown.textContent=t('countdown.go');} else { clearInterval(countdownTimer); countdown.textContent=''; removeGate(); raceState='racing'; raceStart=performance.now(); pauseBtn.disabled=false; startBtn.textContent=t('bet.running'); } },700);
 }
 function resetRace(){
   if(navigating)return;navigating=true;clearInterval(countdownTimer);
@@ -1083,8 +1096,8 @@ function resetRace(){
   account=abandonBet(account);saveAccount();location.reload();
 }
 function togglePause(){
-  if(raceState==='racing'){ raceState='paused'; pauseAt=performance.now(); pauseBtn.textContent='继续'; backgroundMusic.pause(); }
-  else if(raceState==='paused'){ raceStart+=performance.now()-pauseAt; raceState='racing'; pauseBtn.textContent='暂停'; if(musicOn)backgroundMusic.play().catch(()=>{}); }
+  if(raceState==='racing'){ raceState='paused'; pauseAt=performance.now(); pauseBtn.textContent=t('controls.resume'); backgroundMusic.pause(); }
+  else if(raceState==='paused'){ raceStart+=performance.now()-pauseAt; raceState='racing'; pauseBtn.textContent=t('controls.pause'); if(musicOn)backgroundMusic.play().catch(()=>{}); }
   voiceCommentator.setPaused(raceState==='paused');
 }
 startBtn.addEventListener('click',beginRace); resetBtn.addEventListener('click',resetRace); pauseBtn.addEventListener('click',togglePause);
@@ -1104,13 +1117,13 @@ let soundOn=mediaSettings.effects!==false,musicOn=mediaSettings.music!==false;
 const musicSources=import.meta.glob('./static/music/*.ogg',{query:'?url',import:'default',eager:true});
 const musicTracks=Object.keys(musicSources).sort((a,b)=>a.localeCompare(b)).map(path=>({name:decodeURIComponent(path.split('/').pop()),url:musicSources[path]}));
 const backgroundMusic=new Audio(),savedMusicVolume=Number(mediaSettings.musicVolume);backgroundMusic.loop=true;backgroundMusic.preload='none';backgroundMusic.volume=Number.isFinite(savedMusicVolume)?Math.min(1,Math.max(0,savedMusicVolume)):.35;
-backgroundMusic.addEventListener('error',()=>{if(backgroundMusic.src)setMusicStatus('音乐文件不可用，请检查 static/music');});
-let lastMusicIndex=-1;
-function setMusicStatus(name='每场随机播放一首'){const node=document.querySelector('#musicStatus');if(node)node.textContent=name;}
+backgroundMusic.addEventListener('error',()=>{if(backgroundMusic.src)setMusicStatus(t('music.missing'));});
+let lastMusicIndex=-1,currentTrackLabel='';
+function setMusicStatus(name=t('settings.musicIdle')){const node=document.querySelector('#musicStatus');if(node)node.textContent=name;}
 function startRandomMusic(){
   if(!musicOn||!musicTracks.length)return;
   let index=Math.floor(Math.random()*musicTracks.length);if(musicTracks.length>1&&index===lastMusicIndex)index=(index+1+Math.floor(Math.random()*(musicTracks.length-1)))%musicTracks.length;
-  lastMusicIndex=index;const track=musicTracks[index];backgroundMusic.src=track.url;backgroundMusic.currentTime=0;setMusicStatus(`正在播放：${track.name.replace(/\.ogg$/i,'')}`);backgroundMusic.play().catch(()=>setMusicStatus('浏览器等待播放授权'));
+  lastMusicIndex=index;const track=musicTracks[index];currentTrackLabel=track.name.replace(/\.ogg$/i,'');backgroundMusic.src=track.url;backgroundMusic.currentTime=0;setMusicStatus(t('music.playing',{name:track.name.replace(/\.ogg$/i,'')}));backgroundMusic.play().catch(()=>setMusicStatus(t('music.pending')));
 }
 function setMusicEnabled(enabled){musicOn=Boolean(enabled);mediaSettings.music=musicOn;saveMediaSettings();if(!musicOn)backgroundMusic.pause();else if(['countdown','racing'].includes(raceState)){if(!backgroundMusic.src)startRandomMusic();else backgroundMusic.play().catch(()=>{});}}
 function setEffectsEnabled(enabled){soundOn=Boolean(enabled);mediaSettings.effects=soundOn;saveMediaSettings();}
@@ -1142,7 +1155,8 @@ function getRaceStage(m){
   if(landing)return raceSections[landing.id].name;
   return (raceSections.find(section=>routeParameter(p)>section.end)||raceSections.at(-1)).name;
 }
-function raceSnapshot(order){return order.map(m=>({id:m.index,name:m.name,progress:getProgress(m),speed:m.body.velocity.length()*racePhysicsRate,finished:m.finished,failed:m.failed,failureReason:m.failureReason,finishTime:m.finishTime,stage:getRaceStage(m),bowl:getBowlInfo(m),position:{x:m.body.position.x,y:m.body.position.y,z:m.body.position.z}}));}
+const reasonText=reason=>reason==='掉出赛道'?t('reason.offTrack'):reason==='长时间卡住'?t('reason.stuck'):reason;
+function raceSnapshot(order){return order.map(m=>({id:m.index,name:m.name,progress:getProgress(m),speed:m.body.velocity.length()*racePhysicsRate,finished:m.finished,failed:m.failed,failureReason:reasonText(m.failureReason),finishTime:m.finishTime,stage:getRaceStage(m),bowl:getBowlInfo(m),position:{x:m.body.position.x,y:m.body.position.y,z:m.body.position.z}}));}
 for(let i=1;i<=Math.round((trackStartZ-trackEndZ)*2);i++){
   courseDistances.push(courseDistances[i-1]+routeCenter(trackStartZ-i*.5).distanceTo(routeCenter(trackStartZ-(i-1)*.5)));
 }
@@ -1182,10 +1196,10 @@ rankViewport.addEventListener('scroll',updateRankFade,{passive:true});
 const voiceCommentator=new VoiceCommentary({settings:loadVoiceSettings(),onStatus:status=>{
   const toggle=document.querySelector('#voiceToggle'),label=document.querySelector('#voiceStatus');
   if(toggle){toggle.disabled=!status.supported;toggle.checked=status.enabled&&status.supported;}
-  if(label)label.textContent=!status.supported?'当前浏览器不支持语音':!status.enabled?'已关闭':status.error?status.error:status.ready?`${status.tone} · ${status.voiceName}`:'等待中文音色';
+  if(label)label.textContent=!status.supported?t('voice.statusUnsupported'):!status.enabled?t('voice.statusOff'):status.error?status.error:status.ready?t('voice.statusReady',{tone:status.tone,name:status.voiceName}):t('voice.statusWaiting');
 }});
 voiceCommentator.setEnabled(mediaSettings.voice!==false);
-setupVoiceSettings(voiceCommentator,{
+const settingsUi=setupVoiceSettings(voiceCommentator,{
   musicEnabled:()=>musicOn,setMusicEnabled,effectsEnabled:()=>soundOn,setEffectsEnabled,
   voiceEnabled:()=>voiceCommentator.enabled,setVoiceEnabled:enabled=>{mediaSettings.voice=Boolean(enabled);saveMediaSettings();voiceCommentator.setEnabled(Boolean(enabled));if(enabled)voiceCommentator.refresh();},
   danmakuEnabled:()=>danmaku.enabled,setDanmakuEnabled:enabled=>danmaku.setEnabled(enabled),
@@ -1205,7 +1219,8 @@ function updateCommentary(order){
   const stage=getRaceStage(order.find(m=>!m.finished)||order[0]);
   const generatedText=commentator.update(raceSnapshot(order),elapsed+postRaceElapsed,raceState,stage);
   if(!generatedText)return;
-  const text=generatedText.replace(/冲线/g,'入槽').replace(/越过终点|通过终点/g,'进入排次槽');
+  // The Chinese rewrite keeps terminology consistent; other locales are already written that way.
+  const text=getLocale()==='zh-CN'?generatedText.replace(/冲线/g,'入槽').replace(/越过终点|通过终点/g,'进入排次槽'):generatedText;
   directorShot=directorCue(commentator.lastKind,commentator.lastValues,text,raceSections,marbles,performance.now());
   const firstPlacePriority=!order[0].finished&&(commentator.lastKind==='openingLead'||commentator.lastKind==='leadChange'||commentator.lastKind==='gapClosing'&&commentator.lastValues.rank===2||commentator.lastKind==='gapOpening'&&commentator.lastValues.name===order[0].name);
   voiceCommentator.announce(text,{priority:commentator.lastKind==='winner'||firstPlacePriority,confirmed:commentator.lastKind==='finish'||commentator.lastKind==='lastPlace',mood:commentator.lastMood});
@@ -1227,8 +1242,8 @@ function updateHUD(){
     }
     order.forEach((m,i)=>{
     const li=rankRows.get(m.index);li.classList.toggle('focused',m.index===focusIndex);
-    let status='领先';
-    if(m.failed) status='失败';
+    let status=t('rank.statusLeading');
+    if(m.failed) status=t('rank.statusFailed');
     else if(m.finished) status=`${(m.finishTime/1000).toFixed(2)}s`;
     else if(i) status=`${straightDistance(order[0].body.position,m.body.position).toFixed(1)}m`;
     li.querySelector('.rank-num').textContent=String(i+1);
@@ -1241,8 +1256,8 @@ function updateHUD(){
   const f=!focusLocked&&cameraMode.value==='director'&&picks.size?order.find(m=>picks.has(m.index))??marbles[focusIndex]:marbles[focusIndex];
   updateFocusUI(f);
   document.querySelector('#speedText').textContent=(f.body.velocity.length()*racePhysicsRate).toFixed(1);
-  const t=Math.max(0,elapsed); const min=Math.floor(t/60000),sec=Math.floor(t/1000)%60,ms=Math.floor(t%1000); document.querySelector('#raceClock').textContent=`${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}.${String(ms).padStart(3,'0')}`;
-  document.querySelector('#stageText').textContent=cleanStageName(getRaceStage(order.find(m=>!m.finished)||order[0]));
+  const clockMs=Math.max(0,elapsed); const min=Math.floor(clockMs/60000),sec=Math.floor(clockMs/1000)%60,ms=Math.floor(clockMs%1000); document.querySelector('#raceClock').textContent=`${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}.${String(ms).padStart(3,'0')}`;
+  document.querySelector('#stageText').textContent=stageLabel(getRaceStage(order.find(m=>!m.finished)||order[0]));
 }
 
 const failureWatch=new Map(),failureEvidence=new Map();
@@ -1277,11 +1292,11 @@ function checkFinish(previousElapsed=elapsed){
   for(const {m,time} of crossings){m.finished=true;m.finishTime=time;finishOrder.push(m);}
   failAbnormalMarbles();
   if(finishOrder.length===marbles.length){
-    raceState='finished';pauseBtn.disabled=true; startBtn.textContent='比赛结束';
-    const w=finishOrder.find(m=>!m.failed),completed=finishOrder.filter(m=>!m.failed).length,failed=finishOrder.length-completed; document.querySelector('#winnerName').textContent=w?w.name:'比赛超时'; document.querySelector('#winnerName').style.color=w?cssColor(w.color):'#ffffff'; document.querySelector('#finishTime').textContent=w?`用时 ${(w.finishTime/1000).toFixed(3)} 秒 · ${completed} 完赛${failed?` · ${failed} 失败`:''}`:'请重置后再赛一场'; finishCard.hidden=false;
+    raceState='finished';pauseBtn.disabled=true; startBtn.textContent=t('bet.finished');
+    const w=finishOrder.find(m=>!m.failed),completed=finishOrder.filter(m=>!m.failed).length,failed=finishOrder.length-completed; document.querySelector('#winnerName').textContent=w?w.name:t('finish.timeout'); document.querySelector('#winnerName').style.color=w?cssColor(w.color):'#ffffff'; document.querySelector('#finishTime').textContent=w?t(failed?'finish.timeFailed':'finish.time',{time:(w.finishTime/1000).toFixed(3),completed,failed}):t('finish.resetHint'); finishCard.hidden=false;
     account=settleBet(account,w?.index??-1,raceId);saveAccount();updateBetUI();
-    betMessage.textContent=account.lastResult?.won?`押中冠军！奖励 ${account.lastResult.reward} 珠`:'未押中，本场已结算';
-    document.querySelector('#betResult').textContent=`${betMessage.textContent} · 余额 ${account.balance} 珠`;
+    betMessage.textContent=account.lastResult?.won?t('bet.won',{reward:account.lastResult.reward}):t('bet.lost');
+    document.querySelector('#betResult').textContent=t('bet.resultLine',{result:betMessage.textContent,balance:account.balance});
   }
 }
 
@@ -1350,6 +1365,61 @@ function updateCamera(dt){
   programmaticCamera=false;
 }
 
+function refreshRacerNames(){
+  marbles.forEach(m=>{m.name=racerName(m.nameKey);});
+  marbles.forEach((m,i)=>{
+    const option=focusSelect.options[i];if(option)option.textContent=m.name;
+    const row=focusChoiceRows.get(m.index);if(row)row.querySelector('strong').textContent=m.name;
+    const betButton=document.querySelector(`#betChoices button[data-index="${i}"]`);
+    const betLabel=betButton?.querySelector('span:not(.rank-ball)');if(betLabel)betLabel.textContent=m.name;
+    const rankRow=rankRows.get(m.index);if(rankRow)rankRow.querySelector('.rank-name').textContent=m.name;
+  });
+  if(!finishCard.hidden){const champion=finishOrder.find(m=>!m.failed);if(champion)document.querySelector('#winnerName').textContent=champion.name;}
+}
+function resetCommentaryIdle(){
+  const lines=document.querySelector('#commentaryLines');if(!lines)return;
+  const line=document.createElement('p');line.className='commentary-line';line.textContent=t('commentary.idle');
+  lines.replaceChildren(line);
+}
+const languageSelect=document.querySelector('#languageSelect');
+function syncLanguageSelect(){if(languageSelect)languageSelect.value=storedPreference()==='auto'?'auto':getLocale();}
+syncLanguageSelect();
+
+// One place to re-render everything that carries static text, so a live language
+// switch never leaves a half-translated screen.
+function refreshLocalizedUi(){
+  applyDomI18n();
+  refreshRacerNames();
+  updateTrackCode();
+  updateBetUI();
+  updateFocusUI();
+  settingsUi?.sync?.();
+  syncLanguageSelect();
+  if(!commentaryStarted||raceState==='ready')resetCommentaryIdle();
+  if(raceState==='ready'&&!picks.size)betMessage.textContent=t('bet.placeholder');
+  if(currentTrackLabel&&musicOn)setMusicStatus(t('music.playing',{name:currentTrackLabel}));
+  const order=ordered();
+  document.querySelector('#stageText').textContent=stageLabel(getRaceStage(order.find(m=>!m.finished)||order[0]));
+}
+onLocaleChange(()=>{
+  danmaku.clear();
+  voiceCommentator.refresh();
+  refreshLocalizedUi();
+});
+// Localize the boot state too: the markup ships Chinese as a safe fallback.
+refreshLocalizedUi();
+languageSelect?.addEventListener('change',async()=>{
+  languageSelect.disabled=true;
+  try{await selectLanguage(languageSelect.value);}finally{languageSelect.disabled=false;}
+  syncLanguageSelect();
+});
+// Auto mode resolves in the background: the browser guess renders first, the IP
+// lookup may then swap in another language without blocking start-up.
+// `?settings=1` opens the dialog on load, which keeps screenshots and QA simple.
+if(new URLSearchParams(location.search).has('settings'))document.querySelector('#settingsBtn')?.click();
+if(localeBoot.auto){
+  resolveAutoLocale().then(code=>{if(code)setLocale(code,{persist:false});}).catch(()=>{});
+}
 let last=performance.now(), accumulator=0,postRaceElapsed=0;
 function animate(now){
   requestAnimationFrame(animate); const dt=Math.min((now-last)/1000,.05); last=now;

@@ -1,8 +1,17 @@
-const male=/yunxi|yunjian|yunyang|yunfeng|yunhao|kangkang|康康|云希|云健|云扬/i;
-const female=/xiaoxiao|xiaoyi|xiaohan|xiaomo|xiaoxuan|xiaorui|xiaoshuang|huihui|yaoyao|tingting|tracy|hanhan|晓晓|晓伊|慧慧|瑶瑶|婷婷/i;
+import { t, voiceLang } from './i18n/index.js';
+const male=/yunxi|yunjian|yunyang|yunfeng|yunhao|kangkang|康康|云希|云健|云扬|\bmale\b|\bman\b/i;
+const female=/xiaoxiao|xiaoyi|xiaohan|xiaomo|xiaoxuan|xiaorui|xiaoshuang|huihui|yaoyao|tingting|tracy|hanhan|晓晓|晓伊|慧慧|瑶瑶|婷婷|\bfemale\b|\bwoman\b/i;
 export const GOOGLE_TAIWAN_VOICE='google-zh-tw';
-export function voiceGender(voice){return male.test(voice.name)?'male':female.test(voice.name)?'female':'unknown';}
+export function voiceGender(voice){const name=voice?.name||'';return female.test(name)?'female':male.test(name)?'male':'unknown';}
 export function isGoogleTaiwanVoice(voice){return /google/i.test(voice.name)&&(/国语.*台湾|國語.*台灣|taiwan|台湾|台灣/i.test(voice.name)||/^zh[-_]tw/i.test(voice.lang));}
+// Generic picker: any locale prefix ("ru", "fr", "ja", "en", "zh").
+export function chooseVoiceFor(voices,langPrefix,gender,random=Math.random){
+  const prefix=String(langPrefix||'').toLowerCase();
+  const matching=voices.filter(v=>String(v.lang||'').toLowerCase().startsWith(prefix));
+  const withGender=matching.filter(v=>voiceGender(v)===gender);
+  const pool=withGender.length?withGender:matching;
+  return pool.length?pool[Math.floor(random()*pool.length)]:null;
+}
 export function chooseChineseVoice(voices,gender,random=Math.random){
   const chinese=voices.filter(v=>/^zh(?:-|_|$)|^cmn(?:-|_|$)/i.test(v.lang));
   const matching=chinese.filter(v=>voiceGender(v)===gender);
@@ -25,11 +34,13 @@ export class VoiceCommentary {
     this.supported=!!synth&&!!Utterance;this.enabled=true;this.paused=false;this.generation=0;
     this.gender=random()<.5?'male':'female';this.voice=null;this.pending=null;this.active=null;this.confirmedQueue=[];
     this.refresh=()=>{if(!this.supported)return;
-      const voices=this.synth.getVoices();
-      if(!this.voice||!voices.some(v=>v.voiceURI===this.voice.voiceURI)||(this.settings.choice===GOOGLE_TAIWAN_VOICE&&!isGoogleTaiwanVoice(this.voice)&&voices.some(isGoogleTaiwanVoice))){
+      const voices=this.synth.getVoices(),lang=voiceLang();
+      // A saved voice only survives while it still matches the active language.
+      if(!this.voice||!voices.some(v=>v.voiceURI===this.voice.voiceURI&&String(v.lang||'').toLowerCase().startsWith(lang))||(lang==='zh'&&this.settings.choice===GOOGLE_TAIWAN_VOICE&&!isGoogleTaiwanVoice(this.voice)&&voices.some(isGoogleTaiwanVoice))){
         const choice=this.settings.choice;
-        const preferred=choice===GOOGLE_TAIWAN_VOICE?voices.find(isGoogleTaiwanVoice):choice.startsWith('voice:')?voices.find(v=>v.voiceURI===choice.slice(6)&&/^zh|^cmn/i.test(v.lang)):null;
-        this.voice=preferred??chooseChineseVoice(voices,['male','female'].includes(choice)?choice:this.gender,this.random);
+        const preferred=lang==='zh'&&choice===GOOGLE_TAIWAN_VOICE?voices.find(isGoogleTaiwanVoice):choice.startsWith('voice:')?voices.find(v=>v.voiceURI===choice.slice(6)&&String(v.lang||'').toLowerCase().startsWith(lang)):null;
+        const gender=['male','female'].includes(choice)?choice:'';
+        this.voice=preferred??(lang==='zh'?chooseChineseVoice(voices,gender||this.gender,this.random):chooseVoiceFor(voices,lang,gender||this.gender,this.random));
       }
       this.status();this.pump();
     };
@@ -38,7 +49,7 @@ export class VoiceCommentary {
   status(error=''){
     this.lastError=error;
     const gender=this.voice?voiceGender(this.voice):'unknown';
-    const tone=gender==='male'?'男声':gender==='female'?'女声':'系统音色';
+    const tone=gender==='male'?t('voice.toneMale'):gender==='female'?t('voice.toneFemale'):t('voice.toneSystem');
     this.onStatus({supported:this.supported,enabled:this.enabled,ready:!!this.voice,tone,error,voiceName:this.voice?.name??''});
   }
   startRace(){this.stop();this.paused=false;this.gender=this.random()<.5?'male':'female';this.voice=null;this.refresh();}
@@ -69,8 +80,8 @@ export class VoiceCommentary {
     this.active=utterance;
     const complete=()=>{if(token!==this.generation||this.active!==utterance)return;clearTimeout(this.watchdog);this.active=null;this.pump();};
     utterance.onend=complete;
-    utterance.onerror=event=>{if(token!==this.generation)return;this.status(event.error==='not-allowed'?'请点击语音开关开启播报':'语音暂不可用');this.stop();};
+    utterance.onerror=event=>{if(token!==this.generation)return;this.status(t(event.error==='not-allowed'?'voice.errorNotAllowed':'voice.errorUnavailable'));this.stop();};
     this.watchdog=setTimeout(()=>{if(token===this.generation){const latest=this.pending,confirmed=this.confirmedQueue.slice();this.stop();this.pending=latest;this.confirmedQueue=confirmed;this.pump();}},22000);
-    try{this.synth.speak(utterance);}catch{this.status('语音暂不可用');this.stop();}
+    try{this.synth.speak(utterance);}catch{this.status(t('voice.errorUnavailable'));this.stop();}
   }
 }
