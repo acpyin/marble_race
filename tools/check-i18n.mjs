@@ -66,7 +66,7 @@ for (const code of codes) {
 // Every key used by the markup must exist, and every pack must stay Chinese-free
 // in its values (the stage/opening identifiers live in object keys, not values).
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-const used = new Set([...html.matchAll(/data-i18n(?:-aria|-title)?="([^"]+)"/g)].map(match => match[1]));
+const used = new Set([...html.matchAll(/data-i18n(?:-aria|-title|-placeholder)?="([^"]+)"/g)].map(match => match[1]));
 for (const key of used) assert.ok(key in zh.ui, `index.html uses missing key ${key}`);
 
 function collectStrings(value, out = []) {

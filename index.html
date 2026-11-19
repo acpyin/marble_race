@@ -12,7 +12,6 @@
     <main id="game-shell">
       <canvas id="game" aria-label="实时三维弹珠比赛画面" data-i18n-aria="a11y.canvas"></canvas>
       <div id="danmakuOverlay" class="danmaku-overlay" aria-label="模拟观众弹幕" data-i18n-aria="a11y.danmaku"></div>
-
       <header class="topbar">
         <div class="brand"><span class="brand-ball"></span><strong data-i18n="app.brand">弹珠竞速</strong></div>
         <div class="stage"><span data-i18n="topbar.stage">赛段</span><strong id="stageText">准备区</strong></div>
@@ -43,6 +42,7 @@
         <div class="panel-title"><strong data-i18n="bet.title">冠军押注</strong><div class="wallet-actions"><span><b id="balance">1000</b> <span data-i18n="bet.unit">珠</span></span><button id="dailyClaimBtn" type="button">领取 100 珠</button></div></div>
         <small id="betCaption">本地玩家 · 每颗 5 珠 · 最多选 4 颗</small>
         <div id="betChoices" class="bet-choices"></div>
+        <button id="startBtn" class="primary start-race-btn" type="button" data-i18n="bet.start" disabled>押注并开赛</button>
         <p id="betCost">每颗 5 珠，最多选择 4 颗</p>
         <small id="betRewardHint">押中冠军返奖 <b id="betReward">38</b> 珠。开赛扣费，放弃不退。</small>
         <p id="betMessage" role="status" data-i18n="bet.placeholder">请选择你看好的弹珠</p>
@@ -60,9 +60,18 @@
       </div>
 
       <section class="controls" aria-label="比赛控制" data-i18n-aria="controls.aria">
-        <button id="startBtn" class="primary" type="button" data-i18n="controls.start">开始比赛</button>
-        <button id="pauseBtn" type="button" disabled data-i18n="controls.pause">暂停</button>
-        <button id="resetBtn" type="button" data-i18n="controls.reset">新一场</button>
+        <form id="danmakuForm" class="danmaku-compose" autocomplete="off">
+          <button id="danmakuSwitch" type="button" class="danmaku-switch" aria-pressed="true" data-i18n-aria="danmaku.toggle">
+            <svg class="danmaku-switch-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <rect class="ds-screen" x="3" y="5" width="18" height="13.2" rx="3.6" />
+              <path class="ds-antenna" d="M7.6 4.9 5.9 2.3M16.4 4.9 18.1 2.3" />
+              <path class="ds-lines" d="M7.2 10.1h4.3M7.2 13.3h7.6" />
+              <path class="ds-slash" d="M4.2 4.4 19.8 19.9" />
+            </svg>
+          </button>
+          <input id="danmakuInput" type="text" maxlength="40" placeholder="发条弹幕，一起聊比赛…" data-i18n-placeholder="danmaku.placeholder" data-i18n-aria="danmaku.compose" />
+          <button type="submit" data-i18n="danmaku.send">发送</button>
+        </form>
         <span class="divider"></span>
         <label><span data-i18n="controls.camera">镜头</span>
           <select id="cameraMode">
@@ -75,8 +84,29 @@
         </label>
       </section>
 
+      <div id="raceWaitOverlay" class="race-wait-overlay" hidden aria-live="assertive">
+        <div class="race-wait-dialog" role="dialog" aria-modal="true" aria-labelledby="waitTitle">
+          <div class="wait-main">
+            <strong id="waitTitle" data-i18n="wait.title">等待赛事开始</strong>
+            <div class="wait-countdown"><span id="waitCountdown">22</span><small data-i18n="wait.unit">秒</small></div>
+          </div>
+          <section class="wait-bets" aria-label="其他人下注中" data-i18n-aria="wait.others">
+            <header class="wait-bets-head">
+              <span class="wait-bets-dot" aria-hidden="true"></span>
+              <span data-i18n="wait.others">其他人下注中</span>
+              <b><span id="waitBetTotal">0</span> <small data-i18n="wait.betsUnit">注</small></b>
+            </header>
+            <ul id="waitBetList" class="wait-bet-list"></ul>
+          </section>
+        </div>
+      </div>
       <div id="countdown" class="countdown" aria-live="assertive"></div>
       <div id="finishCard" class="finish-card" hidden>
+        <div id="winBanner" class="win-banner" hidden>
+          <span class="win-spark" aria-hidden="true">🎉</span>
+          <strong data-i18n="finish.winBanner">押中冠军！</strong>
+          <span class="win-spark" aria-hidden="true">🏆</span>
+        </div>
         <small data-i18n="finish.label">本场冠军</small>
         <h1 id="winnerName">—</h1>
         <p id="finishTime">—</p>
@@ -87,7 +117,7 @@
       <button id="vaultBtn" class="vault-btn" type="button" aria-haspopup="dialog" data-i18n-title="vault.open">
         <span class="vault-icon" aria-hidden="true"></span>
         <span class="vault-label" data-i18n="vault.title">弹珠宝箱</span>
-        <span id="vaultBadge" class="vault-badge">0/28</span>
+        <span id="vaultBadge" class="vault-badge">0/58</span>
       </button>
       <div class="hint" data-i18n="hint">拖动或缩放后保持自由视角 · 选择镜头可恢复自动跟拍 · 数字键 1–8 切换关注</div>
       <dialog id="vaultDialog" class="vault-dialog" aria-labelledby="vaultTitle">
@@ -95,7 +125,7 @@
           <div><h2 id="vaultTitle" data-i18n="vault.title">弹珠宝箱</h2><p class="settings-description" data-i18n="vault.desc">押中冠军即可把该弹珠收入收藏。</p></div>
           <button id="vaultClose" class="icon-btn" type="button" aria-label="关闭" data-i18n-aria="vault.close">×</button>
         </div>
-        <p class="vault-progress"><strong id="vaultProgress">0/28</strong> <span data-i18n="vault.collected">已收集</span></p>
+        <p class="vault-progress"><strong id="vaultProgress">0/58</strong> <span data-i18n="vault.collected">已收集</span></p>
         <div id="vaultGrid" class="vault-grid"></div>
       </dialog>
       <dialog id="voiceSettings" class="voice-settings" aria-labelledby="voiceSettingsTitle">

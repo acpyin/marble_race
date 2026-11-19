@@ -1,6 +1,9 @@
 // Marble collection vault: persists which champion marbles the player has won.
 // Data shape: { [nameKey]: { count: number, firstAt: ISO string, lastAt: ISO string } }
+import { MARBLE_CATALOG } from './marbles.js';
+
 const STORAGE_KEY = 'marble-race-collection-v1';
+const VALID_MARBLE_NAMES = new Set(MARBLE_CATALOG.map(([name]) => name));
 export { STORAGE_KEY };
 
 export function loadCollection() {
@@ -43,5 +46,6 @@ export function addCollected(nameKey) {
 }
 
 export function collectionOwned() {
-  return Object.keys(loadCollection()).length;
+  // Old saves may still hold entries for retired designs; progress uses the current catalog.
+  return Object.keys(loadCollection()).filter(name => VALID_MARBLE_NAMES.has(name)).length;
 }

@@ -14,8 +14,11 @@ export default {
 
     'a11y.canvas': 'Live 3D marble race view',
     'a11y.danmaku': 'Simulated audience comments',
-    'danmaku.on': 'On',
-    'danmaku.off': 'Off',
+    'danmaku.toggle': 'Danmaku on/off',
+    'danmaku.compose': 'Send a comment',
+    'danmaku.placeholder': 'Say something about the race…',
+    'danmaku.send': 'Send',
+    'danmaku.like': 'Like',
 
     'topbar.stage': 'Section',
     'settings.open': 'Settings',
@@ -61,6 +64,7 @@ export default {
     'vault.desc': 'Back the champion to add that marble to your collection.',
     'vault.collected': 'collected',
     'vault.locked': 'Not collected',
+    'vault.empty': 'Nothing collected yet. Back the winner to add that marble to your vault.',
     'vault.times': 'Collected {count}×',
     'bet.wonCollected': 'Champion hit! {reward} beads — {name} added to your vault',
     'bet.lost': 'No hit, this race is settled',
@@ -78,6 +82,10 @@ export default {
     'commentary.aria': 'Live text commentary',
     'commentary.idle': 'Waiting for the gate to open.',
 
+    'wait.title': 'Waiting for race start',
+    'wait.unit': 's',
+    'wait.others': 'Others are betting',
+    'wait.betsUnit': 'bets',
     'controls.aria': 'Race controls',
     'controls.start': 'Start race',
     'controls.pause': 'Pause',
@@ -93,6 +101,7 @@ export default {
 
     'countdown.go': 'Go',
     'finish.label': 'Race winner',
+    'finish.winBanner': 'CHAMPION HIT!',
     'finish.again': 'Race again',
     'finish.timeout': 'Race timed out',
     'finish.time': '{time}s · {completed} finished',
@@ -170,7 +179,9 @@ export default {
   racers: {
     '青岚': 'Cyan Mist', '紫罗': 'Violet', '星渊': 'Starfall', '银河': 'Galaxy',
     '烈焰': 'Blaze', '甜旋': 'Candy Swirl', '金辉': 'Gold Gleam', '翠羽': 'Emerald',
-    '极光': 'Aurora', '琥珀': 'Amber', '深海': 'Deep Sea', '樱雪': 'Cherry Snow', '薄荷': 'Mint', '星云': 'Nebula', '陨星': 'Meteor', '极夜': 'Polar Night', '光谱': 'Spectrum', '黑洞': 'Black Hole', '斑马': 'Zebra', '波点': 'Polka Dot', '糖虹': 'Candy Rainbow', '云纹': 'Cloud Vein', '虎纹': 'Tiger Stripe', '铬金': 'Chrome', '玫瑰金': 'Rose Gold', '青铜': 'Bronze', '珍珠': 'Pearl', '熔岩': 'Lava',
+    '极光': 'Aurora', '琥珀': 'Amber', '深海': 'Deep Sea', '樱雪': 'Cherry Snow', '薄荷': 'Mint', '星云': 'Nebula', '千花': 'Millefiori', '极夜': 'Polar Night', '光谱': 'Spectrum', '黑洞': 'Black Hole', '木星': 'Jupiter', '波点': 'Polka Dot', '糖虹': 'Candy Rainbow', '云纹': 'Cloud Vein', '欧泊': 'Opal', '铬金': 'Chrome', '玫瑰金': 'Rose Gold', '青铜': 'Bronze', '珍珠': 'Pearl', '蜻蜓眼': 'Dragonfly Eye',
+    '水晶': 'Crystal', '猫眼': "Cat's Eye", '青金': 'Lapis Lazuli', '绿松': 'Turquoise', '龙鳞': 'Dragon Scale', '珐琅': 'Cloisonné', '青花瓷': 'Blue-and-White Porcelain', '汝窑': 'Ru Ware', '钧窑': 'Jun Ware', '官窑': 'Guan Ware', '哥窑': 'Ge Ware', '龙泉青瓷': 'Longquan Celadon', '釉里红': 'Underglaze Red', '唐三彩': 'Tang Sancai', '冰裂': 'Ice Crackle', '土星': 'Saturn', '地球': 'Earth', '月球': 'Moon', '海王星': 'Neptune', '金星': 'Venus', '拉长石': 'Labradorite', '月光石': 'Moonstone', '紫晶': 'Amethyst', '黑曜': 'Obsidian', '脉冲星': 'Pulsar',
+    '太阳': 'Sun', '水星': 'Mercury', '火星': 'Mars', '天王星': 'Uranus', '冥王星': 'Pluto',
   },
 
   woods: { '浅色枫木': 'Pale maple', '蜂蜜橡木': 'Honey oak', '樱桃木': 'Cherry', '胡桃木': 'Walnut' },

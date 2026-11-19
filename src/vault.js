@@ -1,8 +1,8 @@
-// Collection vault UI: renders all 28 marbles, marks captured ones, and stores
-// a win when the player's picked marble takes first place.
+// Collection vault UI: lists the marbles the player already owns (most recent
+// first) and stores a win when the picked marble takes first place.
 import { MARBLE_CATALOG, makeMarbleMaterial, marblePreview } from './marbles.js';
 import { loadCollection, addCollected, collectionOwned } from './collection.js';
-import { racerName, t } from './i18n/index.js';
+import { onLocaleChange, racerName, t } from './i18n/index.js';
 
 const previewCache = new Map();
 function previewFor(nameKey, color, style) {
@@ -25,38 +25,56 @@ export function setupVault() {
   const dialog = document.querySelector('#vaultDialog');
   const openBtn = document.querySelector('#vaultBtn');
   const closeBtn = document.querySelector('#vaultClose');
-  const grid = document.querySelector('#vaultGrid');
+  const container = document.querySelector('#vaultGrid');
   const badge = document.querySelector('#vaultBadge');
   const progress = document.querySelector('#vaultProgress');
-  if (!dialog || !openBtn || !grid) return { refresh() {}, recordWin() {} };
+  if (!dialog || !openBtn || !container) return { refresh() {}, recordWin() {} };
+
+  // Most recently won first, then the most frequently collected.
+  function rankOf(entry) {
+    const at = Date.parse(entry.lastAt || entry.firstAt || '');
+    return { at: Number.isNaN(at) ? 0 : at, count: entry.count || 0 };
+  }
 
   function refresh() {
     const owned = loadCollection();
     const count = collectionOwned();
     if (badge) badge.textContent = `${count}/${MARBLE_CATALOG.length}`;
     if (progress) progress.textContent = `${count}/${MARBLE_CATALOG.length}`;
-    const nodes = MARBLE_CATALOG.map(([nameKey, color, style]) => {
-      const entry = owned[nameKey];
+
+    const entries = MARBLE_CATALOG
+      .filter(([nameKey]) => owned[nameKey])
+      .map(([nameKey, color, style]) => ({ nameKey, color, style, entry: owned[nameKey] }))
+      .sort((a, b) => {
+        const ra = rankOf(a.entry), rb = rankOf(b.entry);
+        return rb.at - ra.at || rb.count - ra.count;
+      });
+
+    if (!entries.length) {
+      const empty = document.createElement('p');
+      empty.className = 'vault-empty';
+      empty.textContent = t('vault.empty');
+      container.replaceChildren(empty);
+      return;
+    }
+
+    container.replaceChildren(...entries.map(({ nameKey, color, style, entry }) => {
       const card = document.createElement('div');
-      card.className = `vault-card${entry ? ' is-owned' : ''}`;
+      card.className = 'vault-card';
       const ball = document.createElement('div');
       ball.className = 'vault-ball';
-      if (entry) {
-        ball.style.backgroundImage = `url("${previewFor(nameKey, color, style)}")`;
-      } else {
-        ball.classList.add('is-locked');
-      }
-      const name = document.createElement('strong');
-      name.textContent = entry ? racerName(nameKey) : '???';
+      ball.style.backgroundImage = `url("${previewFor(nameKey, color, style)}")`;
+      const text = document.createElement('span');
+      text.className = 'vault-text';
+      const nameEl = document.createElement('strong');
+      nameEl.textContent = racerName(nameKey);
       const meta = document.createElement('small');
-      meta.textContent = entry
-        ? t('vault.times', { count: entry.count }) + (entry.firstAt ? ` · ${formatDate(entry.firstAt)}` : '')
-        : t('vault.locked');
-      card.append(ball, name, meta);
-      card.title = entry ? `${racerName(nameKey)} · ${t('vault.times', { count: entry.count })}` : t('vault.locked');
+      meta.textContent = t('vault.times', { count: entry.count }) + (entry.firstAt ? ` · ${formatDate(entry.firstAt)}` : '');
+      text.append(nameEl, meta);
+      card.append(ball, text);
+      card.title = `${racerName(nameKey)} · ${t('vault.times', { count: entry.count })}`;
       return card;
-    });
-    grid.replaceChildren(...nodes);
+    }));
   }
 
   function recordWin(nameKey) {
@@ -74,6 +92,7 @@ export function setupVault() {
   closeBtn?.addEventListener('click', () => { if (typeof dialog.close === 'function') dialog.close(); else dialog.removeAttribute('open'); });
   dialog.addEventListener('click', event => { if (event.target === dialog) { if (typeof dialog.close === 'function') dialog.close(); else dialog.removeAttribute('open'); } });
 
+  onLocaleChange(refresh);
   refresh();
   return { refresh, recordWin };
 }

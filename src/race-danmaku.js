@@ -72,7 +72,13 @@ export class DanmakuOverlay{
     // Panel/layout resizes must never wipe in-flight comments: re-seat them into the new lane area instead.
     this.resizeObserver=new ResizeObserver(()=>this.relayout());this.resizeObserver.observe(root);if(this.rankPanel)this.resizeObserver.observe(this.rankPanel);if(this.focusPanel)this.resizeObserver.observe(this.focusPanel);
   }
-  syncButton(){if(!this.button)return;this.button.textContent=t(this.enabled?'danmaku.on':'danmaku.off');this.button.setAttribute('aria-pressed',String(this.enabled));}
+  syncButton(){
+    if(!this.button)return;
+    const label=t('danmaku.toggle');
+    this.button.setAttribute('aria-pressed',String(this.enabled));
+    this.button.setAttribute('aria-label',label);
+    this.button.title=label;
+  }
   setEnabled(enabled){this.enabled=Boolean(enabled);if(!this.enabled)this.clear();this.observer.lastAt=this.clock;this.syncButton();try{localStorage.setItem('marble-race-danmaku-v1',this.enabled?'on':'off');}catch{}}
   saveSettings(){try{localStorage.setItem('marble-race-danmaku-settings-v1',JSON.stringify({count:this.maxItems,speed:this.speedScale}));}catch{}}
   setMaxItems(value){this.maxItems=Math.round(Math.min(6,Math.max(1,Number(value)||3)));this.saveSettings();}
@@ -120,14 +126,25 @@ export class DanmakuOverlay{
     if(empty.length)return empty[Math.floor(Math.random()*empty.length)];
     return lanes.reduce((best,slot)=>slot.gap>best.gap?slot:best,lanes[0]);
   }
-  spawn(text){
+  spawn(text,own=false){
     if(!this.enabled||this.root.clientWidth<120)return false;
     if(this.items.length>=this.maxItems*6)return false;
     const bounds=this.verticalBounds();if(!bounds)return false;
     const slot=this.pickSlot(),lane=slot.lane;
-    const node=document.createElement('span');node.className='danmaku-item';node.textContent=text;
+    const node=document.createElement('span');node.className=own?'danmaku-item is-own':'danmaku-item';
+    const label=document.createElement('span');label.textContent=text;
+    const like=document.createElement('button');like.type='button';like.className='danmaku-like';
+    like.setAttribute('aria-label',t('danmaku.like'));
+    const icon=document.createElement('span');icon.textContent='👍';
+    const count=document.createElement('span');count.className='danmaku-like-count';count.textContent='0';
+    like.append(icon,count);node.append(label,like);
+    like.addEventListener('click',event=>{
+      event.preventDefault();event.stopPropagation();
+      count.textContent=String(Number(count.textContent)+1);
+      like.classList.add('liked');
+    });
     const laneRatio=this.maxItems===1?.5:(lane+.15+Math.random()*.7)/this.maxItems;
-    node.style.top=`${Math.round(bounds.top+(bounds.bottom-bounds.top-26)*laneRatio)}px`;node.title=t('danmaku.hover');this.root.append(node);
+    node.style.top=`${Math.round(bounds.top+(bounds.bottom-bounds.top-26)*laneRatio)}px`;this.root.append(node);
     let speed=(58+Math.random()*14)*this.speedScale;
     // Sharing a lane never rear-ends the comment ahead of it.
     if(Number.isFinite(slot.speed))speed=Math.max(20,Math.min(speed,slot.speed*.97));

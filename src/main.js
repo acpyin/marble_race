@@ -717,6 +717,34 @@ for(const side of [-1,1]){
   for(let z=-265;z>-285;z-=2)addBarrierBetween({offset:side*1.5,z},{offset:side*1.5,z:z-2},brushed,1.6,.3);
 }
 
+// Both funnel landing pits (-236..-246 and -344..-354) lose their side rails so
+// nothing crosses the drop. That also left the pit open on its two sides and its
+// upstream end, so a hard landing could bounce a marble out of the track. Sealing
+// it with invisible walls keeps the hole readable while making the landing safe.
+// surfaceY() only drops below -246 / -354, while the deck mesh is also sunk
+// across the two pit spans; the wall bases have to follow the actual deck.
+const pitFloorDrop=z=>((z<=-236&&z>-246)||(z<=-344&&z>-354))?8:0;
+function addPitAirWall(zA,zB,offsetA,offsetB,height){
+  const a=trackPoint(offsetA,zA),b=trackPoint(offsetB,zB);
+  a.y-=pitFloorDrop(zA);b.y-=pitFloorDrop(zB);
+  const direction=b.clone().sub(a);direction.y=0;
+  const length=direction.length();
+  if(length<.05)return;
+  const quat=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(1,0,0),direction.normalize());
+  const mid=a.clone().add(b).multiplyScalar(.5);
+  const wall=addStaticBox({x:mid.x,y:mid.y+height/2,z:mid.z,w:length,h:height,d:.3,quat,cast:false,impactSound:false});
+  wall.mesh.visible=false;wall.mesh.name='landing-air-wall';
+}
+function sealLandingPit(backZ,frontZ,height,sideAt=5.95){
+  // Upstream end first, then both sides in short steps so the wall follows the curve.
+  addPitAirWall(backZ,backZ,-5.95,5.95,height);
+  for(const side of [-1,1])for(let z=backZ;z>frontZ;z-=3)addPitAirWall(z,Math.max(frontZ,z-3),side*sideAt,side*sideAt,height);
+}
+sealLandingPit(-236.4,-246.6,4.6);
+// The second pit already has short wooden walls at ±6.05; its air wall sits just
+// outside them so the two surfaces never fight over the same contact.
+sealLandingPit(-344.4,-354.6,5.2,6.3);
+
 // Lower metal chicane, then independent paths merging into the final runway.
 for(const [z,side] of [[-284,-1],[-295,1]])addBarrierBetween({offset:side*6.7,z},{offset:side*1,z:z-6},brushed,1.6,.38);
 for(let z=-328;z>-340;z-=2)addBarrierBetween({offset:0,z},{offset:0,z:z-2},composite,1.4,.3);
@@ -938,10 +966,11 @@ let focusIndex=0,focusLocked=false;
 focusSelect.value='0';
 function cssColor(n){ return `#${n.toString(16).padStart(6,'0')}`; }
 
-let raceState='ready', raceStart=0, elapsed=0, pauseAt=0, countdownTimer=null;
-const startBtn=document.querySelector('#startBtn'), pauseBtn=document.querySelector('#pauseBtn');
-const resetBtn=document.querySelector('#resetBtn'), countdown=document.querySelector('#countdown');
-const finishCard=document.querySelector('#finishCard');
+let raceState='ready', raceStart=0, elapsed=0, waitTimer=null, goTimer=null;
+const startBtn=document.querySelector('#startBtn'), countdown=document.querySelector('#countdown');
+const waitOverlay=document.querySelector('#raceWaitOverlay'), waitCountdown=document.querySelector('#waitCountdown');
+const waitBetList=document.querySelector('#waitBetList'), waitBetTotal=document.querySelector('#waitBetTotal');
+const finishCard=document.querySelector('#finishCard'), winBanner=document.querySelector('#winBanner');
 const createRaceId=()=>globalThis.crypto?.randomUUID?.()??`${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 const walletKey='marble-race-wallet-v2',raceId=createRaceId();
 const picks=new Set(),betMessage=document.querySelector('#betMessage');
@@ -960,6 +989,11 @@ function updateTrackCode(){
   node.title=t('track.title',{wood:woodName(selectedWood.name),combo});
 }
 updateTrackCode();
+// Simulated crowd stakes. The bet cards keep their draft order while betting —
+// nothing re-sorts and no numbers show. These values only surface on the waiting
+// overlay, which is also where the ranking starts moving.
+const crowdBets=marbles.map((m,index)=>({index,m,count:3+Math.round(Math.random()**1.6*150)}));
+const betChoicesEl=document.querySelector('#betChoices');
 marbles.forEach((m,i)=>{
   const button=document.createElement('button');button.type='button';button.dataset.index=String(i);
   button.setAttribute('aria-pressed','false');
@@ -970,7 +1004,7 @@ marbles.forEach((m,i)=>{
     if(picks.has(i))picks.delete(i);else if(picks.size<4)picks.add(i);else{betMessage.textContent=t('bet.maxPicks',{max:4});return;}
     betMessage.textContent=picks.size?t('bet.locked'):t('bet.placeholder');updateBetUI();
   });
-  document.querySelector('#betChoices').append(button);
+  betChoicesEl.append(button);
 });
 function updateBetUI(){
   document.querySelector('#balance').textContent=String(account.balance);
@@ -988,7 +1022,6 @@ function updateBetUI(){
   }));
   document.querySelectorAll('#betChoices button').forEach(button=>{button.disabled=raceState!=='ready';button.setAttribute('aria-pressed',String(picks.has(Number(button.dataset.index))));});
   document.querySelector('#randomTrackBtn').disabled=raceState!=='ready'&&raceState!=='finished';
-  resetBtn.textContent=t(['countdown','racing','paused'].includes(raceState)?'controls.abandon':'controls.reset');
   if(raceState==='ready'){
     startBtn.disabled=picks.size===0||account.balance<cost;
     startBtn.textContent=t('bet.start');
@@ -1012,6 +1045,78 @@ function removeGate(){
 }
 function restoreGate(){ if(gateActive)return; world.addBody(gate.body); gate.mesh.visible=true; gateActive=true; }
 
+// Simulated crowd betting shown while the race waits for its 22-second slot.
+// Every open starts from fresh random numbers, then the counts keep creeping up.
+let waitBetTimer=null, waitBetRows=[];
+function stopWaitBets(){
+  clearInterval(waitBetTimer); waitBetTimer=null;
+  waitBetRows.forEach(row=>clearTimeout(row.deltaTimer));
+  waitBetRows=[];
+}
+function startWaitBets(){
+  stopWaitBets();
+  if(!waitBetList||!waitBetTotal)return;
+  waitBetList.replaceChildren();
+  // Reuse the panel's live stakes so the two rankings always agree, and keep
+  // pushing them up so the ball that is being backed slowly pulls ahead.
+  const seeds=[...crowdBets].sort((a,b)=>b.count-a.count||a.index-b.index);
+  let total=seeds.reduce((sum,seed)=>sum+seed.count,0);
+  waitBetTotal.textContent=String(total);
+  const top=Math.max(seeds[0]?.count||1,1);
+  waitBetRows=seeds.map(seed=>{
+    const row=document.createElement('li'); row.className='wait-bet-row';
+    const fill=document.createElement('span'); fill.className='wait-bet-fill';
+    const ball=document.createElement('span'); ball.className='wait-bet-ball';
+    ball.style.backgroundImage=`url("${seed.m.preview}")`;
+    const name=document.createElement('span'); name.className='wait-bet-name'; name.textContent=seed.m.name;
+    const delta=document.createElement('span'); delta.className='wait-bet-delta';
+    const count=document.createElement('span'); count.className='wait-bet-count'; count.textContent=String(seed.count);
+    fill.style.width=`${Math.max(6,Math.round(seed.count/top*100))}%`;
+    row.append(fill,ball,name,delta,count);
+    waitBetList.append(row);
+    return {row,fill,delta,count,seed,deltaTimer:null};
+  });
+  const repaint=()=>{
+    const leader=Math.max(...waitBetRows.map(row=>row.seed.count),1);
+    waitBetRows.forEach(row=>{ row.fill.style.width=`${Math.max(6,Math.round(row.seed.count/leader*100))}%`; });
+  };
+  // The overlay is the only place the counts are shown, so its ranking moves
+  // with them: rows trade places as the crowd piles onto a ball.
+  const rowOf=new Map(waitBetRows.map(row=>[row.row,row]));
+  const reorder=()=>{
+    const nodes=[...waitBetList.children];
+    if(nodes.length<2)return;
+    const ordered=[...nodes].sort((a,b)=>{
+      const rowA=rowOf.get(a),rowB=rowOf.get(b);
+      return rowB.seed.count-rowA.seed.count||rowA.seed.index-rowB.seed.index;
+    });
+    if(ordered.every((node,i)=>nodes[i]===node))return;
+    const before=new Map(nodes.map(node=>[node,node.getBoundingClientRect()]));
+    ordered.forEach(node=>waitBetList.append(node));
+    if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+    ordered.forEach(node=>{
+      const from=before.get(node),to=node.getBoundingClientRect();
+      const dx=from.left-to.left,dy=from.top-to.top;
+      if(!dx&&!dy)return;
+      node.animate([{transform:`translate(${dx}px,${dy}px)`},{transform:'none'}],{duration:420,easing:'cubic-bezier(.2,.7,.25,1)'});
+    });
+  };
+  waitBetTimer=setInterval(()=>{
+    const hits=1+Math.floor(Math.random()*2);
+    for(let i=0;i<hits;i++){
+      const row=waitBetRows[Math.floor(Math.random()*waitBetRows.length)];
+      const gain=1+Math.floor(Math.random()*9);
+      row.seed.count+=gain; row.count.textContent=String(row.seed.count);
+      total+=gain; waitBetTotal.textContent=String(total);
+      row.delta.textContent=`+${gain}`;
+      row.row.classList.add('is-up');
+      clearTimeout(row.deltaTimer);
+      row.deltaTimer=setTimeout(()=>row.row.classList.remove('is-up'),760);
+    }
+    repaint();reorder();
+  },520);
+}
+
 function beginRace(){
   if(raceState!=='ready'||navigating)return;
   try{account=placeBet(account,[...picks],marbles.length,raceId);}catch(error){betMessage.textContent=error.message;return;}
@@ -1019,31 +1124,43 @@ function beginRace(){
   ensureAudio();
   startRandomMusic();
   voiceCommentator.startRace();
-  raceState='countdown'; finishCard.hidden=true; startBtn.disabled=true; pauseBtn.disabled=true;
+  raceState='countdown'; finishCard.hidden=true; startBtn.disabled=true;
+  winBanner.hidden=true; betMessage.classList.remove('win');
   betMessage.textContent=t('bet.locked');updateBetUI();
-  let n=3; countdown.textContent=n;
-  clearInterval(countdownTimer);
-  countdownTimer=setInterval(()=>{ n--; if(n>0){countdown.textContent=n;} else if(n===0){countdown.textContent=t('countdown.go');} else { clearInterval(countdownTimer); countdown.textContent=''; removeGate(); raceState='racing'; raceStart=performance.now(); pauseBtn.disabled=false; startBtn.textContent=t('bet.running'); } },700);
+
+  // Wait until the next whole Unix second divisible by 22, then release the gate.
+  const nowSeconds=Math.floor(Date.now()/1000);
+  const targetTime=(nowSeconds+(22-nowSeconds%22))*1000;
+  clearInterval(waitTimer); clearTimeout(goTimer);
+  countdown.textContent=''; waitOverlay.hidden=false;
+  startWaitBets();
+  const renderWait=()=>{
+    const remaining=Math.max(0,Math.ceil((targetTime-Date.now())/1000));
+    waitCountdown.textContent=String(remaining).padStart(2,'0');
+    if(remaining>0)return;
+    clearInterval(waitTimer); waitOverlay.hidden=true; stopWaitBets();
+    countdown.textContent=t('countdown.go');
+    goTimer=setTimeout(()=>{countdown.textContent='';},700);
+    removeGate(); raceState='racing'; raceStart=performance.now(); startBtn.textContent=t('bet.running');
+  };
+  renderWait();
+  waitTimer=setInterval(renderWait,100);
 }
 function resetRace(){
-  if(navigating)return;navigating=true;clearInterval(countdownTimer);
+  if(navigating)return;navigating=true;
+  clearInterval(waitTimer); clearTimeout(goTimer); waitOverlay.hidden=true; stopWaitBets();
   backgroundMusic.pause();
   voiceCommentator.stop();
   account=abandonBet(account);saveAccount();location.reload();
 }
-function togglePause(){
-  if(raceState==='racing'){ raceState='paused'; pauseAt=performance.now(); pauseBtn.textContent=t('controls.resume'); backgroundMusic.pause(); }
-  else if(raceState==='paused'){ raceStart+=performance.now()-pauseAt; raceState='racing'; pauseBtn.textContent=t('controls.pause'); if(musicOn)backgroundMusic.play().catch(()=>{}); }
-  voiceCommentator.setPaused(raceState==='paused');
-}
-startBtn.addEventListener('click',beginRace); resetBtn.addEventListener('click',resetRace); pauseBtn.addEventListener('click',togglePause);
+startBtn.addEventListener('click',beginRace);
 document.querySelector('#raceAgainBtn').addEventListener('click',resetRace);
 function setFocusPicker(open){focusPickerPanel.hidden=!open;focusCard.setAttribute('aria-expanded',String(open));}
 focusCard.addEventListener('click',event=>{if(event.target.closest('.focus-picker-panel'))return;setFocusPicker(focusPickerPanel.hidden);});
 focusCard.addEventListener('keydown',event=>{if(event.target.closest('.focus-picker-panel'))return;if(event.key==='Enter'||event.key===' '){event.preventDefault();setFocusPicker(focusPickerPanel.hidden);}else if(event.key==='Escape')setFocusPicker(false);});
 document.addEventListener('pointerdown',event=>{if(!focusCard.contains(event.target))setFocusPicker(false);});
 focusSelect.addEventListener('change',()=>{focusIndex=Number(focusSelect.value);updateFocusUI();setFocusPicker(false);});
-addEventListener('keydown',e=>{ const n=Number(e.key); if(n>=1&&n<=8){focusIndex=n-1;focusSelect.value=String(focusIndex);updateFocusUI();} if(e.code==='Space'){e.preventDefault(); raceState==='ready'?beginRace():togglePause();} });
+addEventListener('keydown',e=>{ const n=Number(e.key); if(n>=1&&n<=8){focusIndex=n-1;focusSelect.value=String(focusIndex);updateFocusUI();} if(e.code==='Space'&&raceState==='ready'){e.preventDefault();beginRace();} });
 
 const mediaSettingsKey='marble-race-media-settings-v1';
 let mediaSettings={music:true,effects:true,voice:false,musicVolume:.35};
@@ -1118,7 +1235,16 @@ function updateFocusUI(m=marbles[focusIndex]){
 updateFocusUI();
 
 const commentator=new RaceCommentary();
-const danmaku=new DanmakuOverlay(document.querySelector('#danmakuOverlay'),null);
+const danmaku=new DanmakuOverlay(document.querySelector('#danmakuOverlay'),document.querySelector('#danmakuSwitch'));
+const danmakuForm=document.querySelector('#danmakuForm'),danmakuInput=document.querySelector('#danmakuInput');
+danmakuForm?.addEventListener('submit',event=>{
+  event.preventDefault();
+  const text=danmakuInput.value.trim();
+  if(!text)return;
+  if(!danmaku.enabled)danmaku.setEnabled(true);
+  if(danmaku.spawn(text,true))danmakuInput.value='';
+  danmakuInput.blur();
+});
 const rankViewport=document.querySelector('#rankViewport');
 const rankRows=new Map(marbles.map(m=>{
   const row=document.createElement('li');
@@ -1143,9 +1269,9 @@ const settingsUi=setupVoiceSettings(voiceCommentator,{
   danmakuSpeed:()=>danmaku.speedScale,setDanmakuSpeed:value=>danmaku.setSpeedScale(value),
   musicVolume:()=>backgroundMusic.volume,setMusicVolume
 });
-addEventListener('pagehide',()=>{voiceCommentator.stop();backgroundMusic.pause();});
+addEventListener('pagehide',()=>{clearInterval(waitTimer);clearTimeout(goTimer);voiceCommentator.stop();backgroundMusic.pause();});
 document.addEventListener('visibilitychange',()=>{
-  voiceCommentator.setPaused(document.hidden||raceState==='paused');
+  voiceCommentator.setPaused(document.hidden);
   if(document.hidden)backgroundMusic.pause();else if(musicOn&&['countdown','racing'].includes(raceState))backgroundMusic.play().catch(()=>{});
 });
 const commentaryLines=document.querySelector('#commentaryLines'),commentaryWindow=document.querySelector('#commentaryWindow');
@@ -1228,11 +1354,11 @@ function checkFinish(previousElapsed=elapsed){
   for(const {m,time} of crossings){m.finished=true;m.finishTime=time;finishOrder.push(m);}
   failAbnormalMarbles();
   if(finishOrder.length===marbles.length){
-    raceState='finished';pauseBtn.disabled=true; startBtn.textContent=t('bet.finished');
+    raceState='finished'; startBtn.textContent=t('bet.finished');
     const w=finishOrder.find(m=>!m.failed),completed=finishOrder.filter(m=>!m.failed).length,failed=finishOrder.length-completed; document.querySelector('#winnerName').textContent=w?w.name:t('finish.timeout'); document.querySelector('#winnerName').style.color=w?cssColor(w.color):'#ffffff'; document.querySelector('#finishTime').textContent=w?t(failed?'finish.timeFailed':'finish.time',{time:(w.finishTime/1000).toFixed(3),completed,failed}):t('finish.resetHint'); finishCard.hidden=false;
     account=settleBet(account,w?.index??-1,raceId);saveAccount();updateBetUI();
-    if(account.lastResult?.won&&w?.nameKey){vault.recordWin(w.nameKey);betMessage.textContent=t('bet.wonCollected',{reward:account.lastResult.reward,name:w.name});}
-    else betMessage.textContent=t('bet.lost');
+    if(account.lastResult?.won&&w?.nameKey){vault.recordWin(w.nameKey);betMessage.textContent=t('bet.wonCollected',{reward:account.lastResult.reward,name:w.name});betMessage.classList.add('win');winBanner.hidden=false;}
+    else {betMessage.textContent=t('bet.lost');betMessage.classList.remove('win');winBanner.hidden=true;}
     document.querySelector('#betResult').textContent=t('bet.resultLine',{result:betMessage.textContent,balance:account.balance});
   }
 }
@@ -1330,6 +1456,7 @@ function refreshLocalizedUi(){
   updateTrackCode();
   updateBetUI();
   updateFocusUI();
+  danmaku.syncButton();
   settingsUi?.sync?.();
   vault?.refresh();
   syncLanguageSelect();

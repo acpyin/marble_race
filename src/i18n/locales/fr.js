@@ -14,8 +14,11 @@ export default {
 
     'a11y.canvas': 'Vue 3D en direct de la course de billes',
     'a11y.danmaku': 'Commentaires simulés du public',
-    'danmaku.on': 'Activé',
-    'danmaku.off': 'Désactivé',
+    'danmaku.toggle': 'Commentaires on/off',
+    'danmaku.compose': 'Envoyer un commentaire',
+    'danmaku.placeholder': 'Parlez de la course…',
+    'danmaku.send': 'Envoyer',
+    'danmaku.like': 'J’aime',
 
     'topbar.stage': 'Section',
     'settings.open': 'Réglages',
@@ -61,6 +64,7 @@ export default {
     'vault.desc': 'Parez le champion pour ajouter la bille à votre collection.',
     'vault.collected': 'collectées',
     'vault.locked': 'Non collectée',
+    'vault.empty': 'Aucune bille encore. Pariez sur le vainqueur pour l’ajouter au coffre.',
     'vault.times': 'Collectée {count} fois',
     'bet.wonCollected': 'Champion trouvé ! {reward} billes — {name} ajoutée au coffre',
     'bet.lost': 'Raté, cette course est réglée',
@@ -78,6 +82,10 @@ export default {
     'commentary.aria': 'Commentaire écrit en direct',
     'commentary.idle': 'En attendant l’ouverture des portes, le spectacle va commencer.',
 
+    'wait.title': 'En attente du départ',
+    'wait.unit': 's',
+    'wait.others': 'Les autres parient',
+    'wait.betsUnit': 'paris',
     'controls.aria': 'Commandes de course',
     'controls.start': 'Lancer la course',
     'controls.pause': 'Pause',
@@ -93,6 +101,7 @@ export default {
 
     'countdown.go': 'Partez',
     'finish.label': 'Vainqueur de la course',
+    'finish.winBanner': 'CHAMPION TROUVÉ !',
     'finish.again': 'Rejouer',
     'finish.timeout': 'Course expirée',
     'finish.time': '{time} s · {completed} arrivées',
@@ -170,7 +179,9 @@ export default {
   racers: {
     '青岚': 'Brume azur', '紫罗': 'Violette', '星渊': 'Abîme étoilé', '银河': 'Galaxie',
     '烈焰': 'Brasier', '甜旋': 'Tourbillon sucré', '金辉': 'Éclat doré', '翠羽': 'Plume d’émeraude',
-    '极光': 'Aurore', '琥珀': 'Ambre', '深海': 'Océan profond', '樱雪': 'Neige de cerisier', '薄荷': 'Menthe', '星云': 'Nébuleuse', '陨星': 'Météore', '极夜': 'Nuit polaire', '光谱': 'Spectre', '黑洞': 'Trou noir', '斑马': 'Zèbre', '波点': 'Pois', '糖虹': 'Arc-en-candy', '云纹': 'Nuage', '虎纹': 'Rayure tigre', '铬金': 'Chrome', '玫瑰金': 'Or rose', '青铜': 'Bronze', '珍珠': 'Perle', '熔岩': 'Lave',
+    '极光': 'Aurore', '琥珀': 'Ambre', '深海': 'Océan profond', '樱雪': 'Neige de cerisier', '薄荷': 'Menthe', '星云': 'Nébuleuse', '千花': 'Millefiori', '极夜': 'Nuit polaire', '光谱': 'Spectre', '黑洞': 'Trou noir', '木星': 'Jupiter', '波点': 'Pois', '糖虹': 'Arc-en-candy', '云纹': 'Nuage', '欧泊': 'Opale', '铬金': 'Chrome', '玫瑰金': 'Or rose', '青铜': 'Bronze', '珍珠': 'Perle', '蜻蜓眼': 'Œil de libellule',
+    '水晶': 'Cristal', '猫眼': 'Œil de chat', '青金': 'Lapis-lazuli', '绿松': 'Turquoise', '龙鳞': 'Écaille de dragon', '珐琅': 'Cloisonné', '青花瓷': 'Porcelain bleu et blanc', '汝窑': 'Céramique Ru', '钧窑': 'Céramique Jun', '官窑': 'Céramique Guan', '哥窑': 'Céramique Ge', '龙泉青瓷': 'Céladon de Longquan', '釉里红': 'Rouge sous glaçure', '唐三彩': 'Sancai des Tang', '冰裂': 'Cristal givré', '土星': 'Saturne', '地球': 'Terre', '月球': 'Lune', '海王星': 'Neptune', '金星': 'Vénus', '拉长石': 'Labradorite', '月光石': 'Pierre de lune', '紫晶': 'Améthyste', '黑曜': 'Obsidienne', '脉冲星': 'Pulsar',
+    '太阳': 'Soleil', '水星': 'Mercure', '火星': 'Mars', '天王星': 'Uranus', '冥王星': 'Pluton',
   },
 
   woods: {
