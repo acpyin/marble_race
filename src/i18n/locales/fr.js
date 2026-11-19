@@ -55,6 +55,14 @@ export default {
     'bet.running': 'Course en cours',
     'bet.finished': 'Course terminée',
     'bet.won': 'Champion trouvé ! {reward} billes',
+    'vault.title': 'Coffre à billes',
+    'vault.open': 'Ouvrir le coffre',
+    'vault.close': 'Fermer',
+    'vault.desc': 'Parez le champion pour ajouter la bille à votre collection.',
+    'vault.collected': 'collectées',
+    'vault.locked': 'Non collectée',
+    'vault.times': 'Collectée {count} fois',
+    'bet.wonCollected': 'Champion trouvé ! {reward} billes — {name} ajoutée au coffre',
     'bet.lost': 'Raté, cette course est réglée',
     'bet.resultLine': '{result} · Solde {balance} billes',
     'bet.myBets': 'Mes paris',
@@ -162,6 +170,7 @@ export default {
   racers: {
     '青岚': 'Brume azur', '紫罗': 'Violette', '星渊': 'Abîme étoilé', '银河': 'Galaxie',
     '烈焰': 'Brasier', '甜旋': 'Tourbillon sucré', '金辉': 'Éclat doré', '翠羽': 'Plume d’émeraude',
+    '极光': 'Aurore', '琥珀': 'Ambre', '深海': 'Océan profond', '樱雪': 'Neige de cerisier', '薄荷': 'Menthe', '星云': 'Nébuleuse', '陨星': 'Météore', '极夜': 'Nuit polaire', '光谱': 'Spectre', '黑洞': 'Trou noir', '斑马': 'Zèbre', '波点': 'Pois', '糖虹': 'Arc-en-candy', '云纹': 'Nuage', '虎纹': 'Rayure tigre', '铬金': 'Chrome', '玫瑰金': 'Or rose', '青铜': 'Bronze', '珍珠': 'Perle', '熔岩': 'Lave',
   },
 
   woods: {

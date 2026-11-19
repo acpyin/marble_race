@@ -84,7 +84,20 @@
         <button id="raceAgainBtn" class="primary" type="button" data-i18n="finish.again">再赛一场</button>
       </div>
 
+      <button id="vaultBtn" class="vault-btn" type="button" aria-haspopup="dialog" data-i18n-title="vault.open">
+        <span class="vault-icon" aria-hidden="true"></span>
+        <span class="vault-label" data-i18n="vault.title">弹珠宝箱</span>
+        <span id="vaultBadge" class="vault-badge">0/28</span>
+      </button>
       <div class="hint" data-i18n="hint">拖动或缩放后保持自由视角 · 选择镜头可恢复自动跟拍 · 数字键 1–8 切换关注</div>
+      <dialog id="vaultDialog" class="vault-dialog" aria-labelledby="vaultTitle">
+        <div class="vault-head">
+          <div><h2 id="vaultTitle" data-i18n="vault.title">弹珠宝箱</h2><p class="settings-description" data-i18n="vault.desc">押中冠军即可把该弹珠收入收藏。</p></div>
+          <button id="vaultClose" class="icon-btn" type="button" aria-label="关闭" data-i18n-aria="vault.close">×</button>
+        </div>
+        <p class="vault-progress"><strong id="vaultProgress">0/28</strong> <span data-i18n="vault.collected">已收集</span></p>
+        <div id="vaultGrid" class="vault-grid"></div>
+      </dialog>
       <dialog id="voiceSettings" class="voice-settings" aria-labelledby="voiceSettingsTitle">
         <h2 id="voiceSettingsTitle" data-i18n="settings.title">游戏设置</h2>
         <p class="settings-description" data-i18n="settings.desc">音乐、碰撞音效、赛事解说和弹幕都可以在这里调整。</p>

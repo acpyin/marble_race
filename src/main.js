@@ -10,6 +10,8 @@ import {VoiceCommentary} from './voice-commentary.js';
 import {loadVoiceSettings,setupVoiceSettings} from './voice-settings.js';
 import {directorCue,stageRacer} from './director-camera.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { MARBLE_CATALOG, pickMarbles, makeMarbleMaterial, marblePreview } from './marbles.js';
+import { setupVault } from './vault.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { applyDomI18n, getLocale, initLocale, moduleLabel, onLocaleChange, racerName, resolveAutoLocale, selectLanguage, setLocale, stageLabel, storedPreference, t, woodName } from './i18n/index.js';
 import './style.css';
@@ -869,10 +871,8 @@ const gate=addBarrierBetween({offset:-5.65,z:36},{offset:5.65,z:36},steel,1.5,.4
 gate.body.impactSound=false;
 let gateActive=true;
 
-const marbleDefs=[
-  ['青岚',0x20c4c9,'glass'],['紫罗',0x9d4bd2,'glass'],['星渊',0x342277,'stars'],['银河',0x4779cf,'galaxy'],
-  ['烈焰',0xe44324,'fire'],['甜旋',0xff4f91,'candy'],['金辉',0xe5b51d,'metal'],['翠羽',0x38b97c,'glass']
-];
+// Each race draws 8 distinct marbles from the full catalog of 28.
+const marbleDefs=pickMarbles(8);
 const marbles=[];
 const finishOrder=[];
 // Inked numbers sit on the surrounding plank; they do not overlap the carved groove.
@@ -884,71 +884,6 @@ for(let rank=1;rank<=8;rank++){
   const z=finishReceiver.firstSlot+(rank-1)*finishReceiver.slotSpacing;
   label.position.copy(trackPoint(1.8,z,.025));label.quaternion.copy(trackQuaternion(z)).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),-Math.PI/2));
   label.name=`finish-rank-${rank}`;scene.add(label);
-}
-
-function makePatternTexture(style){
-  const c=document.createElement('canvas'); c.width=768; c.height=384; const x=c.getContext('2d');
-  if(style==='candy'){
-    x.fillStyle='#fff7e8';x.fillRect(0,0,c.width,c.height);
-    x.strokeStyle='#ef377d';x.lineWidth=58;
-    for(let n=-5;n<12;n++){x.beginPath();for(let px=0;px<=768;px+=8){const py=n*86+px*.55+Math.sin(px*.018)*22;px?x.lineTo(px,py):x.moveTo(px,py);}x.stroke();}
-  }else{
-    const g=x.createLinearGradient(0,0,768,384);
-    if(style==='fire'){g.addColorStop(0,'#220300');g.addColorStop(.38,'#a50e00');g.addColorStop(.72,'#ff7200');g.addColorStop(1,'#ffe36a');}
-    else if(style==='galaxy'){g.addColorStop(0,'#030414');g.addColorStop(.38,'#2a1670');g.addColorStop(.62,'#b637a6');g.addColorStop(1,'#136bc6');}
-    else{g.addColorStop(0,'#01020b');g.addColorStop(.52,'#171340');g.addColorStop(1,'#04030f');}
-    x.fillStyle=g;x.fillRect(0,0,768,384);
-    let seed=style==='fire'?407:913;const rnd=()=>((seed=Math.imul(seed,1664525)+1013904223|0)>>>0)/4294967296;
-    if(style==='fire'){
-      for(let i=0;i<75;i++){const px=rnd()*768,base=380+rnd()*35,h=45+rnd()*180;x.beginPath();x.moveTo(px-18,base);x.quadraticCurveTo(px-35,base-h*.55,px,base-h);x.quadraticCurveTo(px+35,base-h*.45,px+18,base);x.fillStyle=`rgba(255,${80+rnd()*150},0,${.24+rnd()*.5})`;x.fill();}
-    }else{
-      for(let i=0;i<300;i++){const r=rnd()<.04?2.2:0.5+rnd();x.beginPath();x.arc(rnd()*768,rnd()*384,r,0,Math.PI*2);x.fillStyle=`rgba(${190+rnd()*65},${205+rnd()*50},255,${.45+rnd()*.55})`;x.fill();}
-      if(style==='galaxy'){x.strokeStyle='rgba(190,170,255,.38)';x.lineWidth=36;x.beginPath();x.moveTo(-30,330);x.bezierCurveTo(190,20,520,370,800,30);x.stroke();}
-    }
-  }
-  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;return t;
-}
-
-function makeMarbleMaterial(color,style){
-  if(style==='glass')return new THREE.MeshPhysicalMaterial({color,metalness:0,roughness:.07,transmission:.72,transparent:true,opacity:.88,thickness:1.1,ior:1.48,clearcoat:1,envMapIntensity:1.7});
-  if(style==='metal')return new THREE.MeshPhysicalMaterial({color,metalness:.82,roughness:.12,clearcoat:1,clearcoatRoughness:.05,envMapIntensity:1.8});
-  return new THREE.MeshPhysicalMaterial({color:0xffffff,map:makePatternTexture(style),metalness:style==='stars'?.34:.12,roughness:.12,clearcoat:1,clearcoatRoughness:.04,envMapIntensity:1.65});
-}
-
-function marblePreview(color,style,material){
-  // Draw the same source pattern used by the 3D material onto a small shaded sphere.
-  // Canvas 2D avoids an extra WebGL renderer or a GPU readback during page load.
-  const canvas=document.createElement('canvas');canvas.width=canvas.height=96;
-  const x=canvas.getContext('2d'),radius=43,cx=48,cy=48;
-  const red=color>>16&255,green=color>>8&255,blue=color&255;
-  x.save();x.beginPath();x.arc(cx,cy,radius,0,Math.PI*2);x.clip();
-  if(material.map?.image){
-    const source=material.map.image;
-    for(let px=-radius;px<radius;px+=2){
-      const longitude=Math.asin(Math.max(-1,Math.min(1,(px+1)/radius)));
-      const sx=Math.max(0,Math.min(source.width-2,(0.5+longitude/(Math.PI*2))*source.width));
-      x.drawImage(source,sx,0,Math.max(2,source.width/180),source.height,cx+px,cy-radius,2,radius*2);
-    }
-  }else{
-    const base=x.createRadialGradient(29,24,4,53,55,58);
-    base.addColorStop(0,`rgb(${Math.min(255,red+92)},${Math.min(255,green+92)},${Math.min(255,blue+92)})`);
-    base.addColorStop(.33,`rgb(${red},${green},${blue})`);
-    base.addColorStop(.76,`rgb(${Math.round(red*.65)},${Math.round(green*.65)},${Math.round(blue*.65)})`);
-    base.addColorStop(1,`rgb(${Math.round(red*.25)},${Math.round(green*.25)},${Math.round(blue*.25)})`);
-    x.fillStyle=base;x.fillRect(0,0,96,96);
-    if(style==='glass'){
-      x.strokeStyle='rgba(245,255,255,.34)';x.lineWidth=6;x.beginPath();x.arc(48,49,33,.9,2.9);x.stroke();
-    }
-  }
-  const shade=x.createRadialGradient(34,28,5,49,50,51);
-  shade.addColorStop(0,'rgba(255,255,255,.46)');shade.addColorStop(.27,'rgba(255,255,255,.06)');
-  shade.addColorStop(.7,'rgba(8,10,19,.07)');shade.addColorStop(1,'rgba(3,5,12,.68)');
-  x.fillStyle=shade;x.fillRect(0,0,96,96);
-  x.fillStyle='rgba(255,255,255,.74)';x.beginPath();x.ellipse(32,26,12,6,-.45,0,Math.PI*2);x.fill();
-  x.fillStyle='rgba(255,255,255,.28)';x.beginPath();x.ellipse(62,67,11,4,-.45,0,Math.PI*2);x.fill();
-  x.restore();
-  x.strokeStyle='rgba(255,255,255,.31)';x.lineWidth=1.2;x.beginPath();x.arc(cx,cy,radius-.7,0,Math.PI*2);x.stroke();
-  return canvas.toDataURL('image/png');
 }
 
 function createMarble([nameKey,color,style],i){
@@ -1062,6 +997,7 @@ function updateBetUI(){
 }
 if(interrupted)betMessage.textContent=t('bet.interrupted');
 updateBetUI();
+const vault=setupVault();
 dailyClaimBtn.addEventListener('click',()=>{const result=claimDaily(account,localDateKey());account=result.account;if(result.claimed){saveAccount();betMessage.textContent=t('bet.daily',{amount:DAILY_BONUS});}updateBetUI();});
 document.querySelector('#randomTrackBtn').addEventListener('click',resetRace);
 
@@ -1295,7 +1231,8 @@ function checkFinish(previousElapsed=elapsed){
     raceState='finished';pauseBtn.disabled=true; startBtn.textContent=t('bet.finished');
     const w=finishOrder.find(m=>!m.failed),completed=finishOrder.filter(m=>!m.failed).length,failed=finishOrder.length-completed; document.querySelector('#winnerName').textContent=w?w.name:t('finish.timeout'); document.querySelector('#winnerName').style.color=w?cssColor(w.color):'#ffffff'; document.querySelector('#finishTime').textContent=w?t(failed?'finish.timeFailed':'finish.time',{time:(w.finishTime/1000).toFixed(3),completed,failed}):t('finish.resetHint'); finishCard.hidden=false;
     account=settleBet(account,w?.index??-1,raceId);saveAccount();updateBetUI();
-    betMessage.textContent=account.lastResult?.won?t('bet.won',{reward:account.lastResult.reward}):t('bet.lost');
+    if(account.lastResult?.won&&w?.nameKey){vault.recordWin(w.nameKey);betMessage.textContent=t('bet.wonCollected',{reward:account.lastResult.reward,name:w.name});}
+    else betMessage.textContent=t('bet.lost');
     document.querySelector('#betResult').textContent=t('bet.resultLine',{result:betMessage.textContent,balance:account.balance});
   }
 }
@@ -1394,6 +1331,7 @@ function refreshLocalizedUi(){
   updateBetUI();
   updateFocusUI();
   settingsUi?.sync?.();
+  vault?.refresh();
   syncLanguageSelect();
   if(!commentaryStarted||raceState==='ready')resetCommentaryIdle();
   if(raceState==='ready'&&!picks.size)betMessage.textContent=t('bet.placeholder');
@@ -1417,6 +1355,8 @@ languageSelect?.addEventListener('change',async()=>{
 // lookup may then swap in another language without blocking start-up.
 // `?settings=1` opens the dialog on load, which keeps screenshots and QA simple.
 if(new URLSearchParams(location.search).has('settings'))document.querySelector('#settingsBtn')?.click();
+// `?vault=1` opens the collection vault on load for QA / deep-linking.
+if(new URLSearchParams(location.search).has('vault'))document.querySelector('#vaultBtn')?.click();
 if(localeBoot.auto){
   resolveAutoLocale().then(code=>{if(code)setLocale(code,{persist:false});}).catch(()=>{});
 }

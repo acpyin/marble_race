@@ -55,6 +55,14 @@ export default {
     'bet.running': 'Racing',
     'bet.finished': 'Race over',
     'bet.won': 'Champion hit! {reward} beads',
+    'vault.title': 'Marble vault',
+    'vault.open': 'Open marble vault',
+    'vault.close': 'Close',
+    'vault.desc': 'Back the champion to add that marble to your collection.',
+    'vault.collected': 'collected',
+    'vault.locked': 'Not collected',
+    'vault.times': 'Collected {count}×',
+    'bet.wonCollected': 'Champion hit! {reward} beads — {name} added to your vault',
     'bet.lost': 'No hit, this race is settled',
     'bet.resultLine': '{result} · Balance {balance} beads',
     'bet.myBets': 'My bets',
@@ -162,6 +170,7 @@ export default {
   racers: {
     '青岚': 'Cyan Mist', '紫罗': 'Violet', '星渊': 'Starfall', '银河': 'Galaxy',
     '烈焰': 'Blaze', '甜旋': 'Candy Swirl', '金辉': 'Gold Gleam', '翠羽': 'Emerald',
+    '极光': 'Aurora', '琥珀': 'Amber', '深海': 'Deep Sea', '樱雪': 'Cherry Snow', '薄荷': 'Mint', '星云': 'Nebula', '陨星': 'Meteor', '极夜': 'Polar Night', '光谱': 'Spectrum', '黑洞': 'Black Hole', '斑马': 'Zebra', '波点': 'Polka Dot', '糖虹': 'Candy Rainbow', '云纹': 'Cloud Vein', '虎纹': 'Tiger Stripe', '铬金': 'Chrome', '玫瑰金': 'Rose Gold', '青铜': 'Bronze', '珍珠': 'Pearl', '熔岩': 'Lava',
   },
 
   woods: { '浅色枫木': 'Pale maple', '蜂蜜橡木': 'Honey oak', '樱桃木': 'Cherry', '胡桃木': 'Walnut' },
